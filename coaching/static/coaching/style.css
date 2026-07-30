@@ -1,25 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --bg-primary: #0b0f19;
-    --bg-secondary: #111827;
-    --bg-card: rgba(17, 24, 39, 0.8);
-    --border-color: rgba(255, 255, 255, 0.06);
-    --text-primary: #f3f4f6;
-    --text-secondary: #9ca3af;
+    --bg-primary: #050b14;
+    --bg-secondary: #0c1524;
+    --bg-card: rgba(12, 21, 36, 0.85);
+    --border-color: rgba(56, 189, 248, 0.15);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
     
-    /* Neon accents */
-    --accent-indigo: #6366f1;
-    --accent-purple: #a855f7;
-    --accent-emerald: #10b981;
-    --accent-rose: #f43f5e;
-    --accent-amber: #f59e0b;
+    /* Vibrant Cyber Ocean Accents */
+    --accent-indigo: #0284c7;  /* Deep Cyan/Sky Blue */
+    --accent-cyan: #06b6d4;    /* Electric Cyan */
+    --accent-purple: #8b5cf6;  /* Vivid Purple */
+    --accent-emerald: #10b981; /* Emerald Mint */
+    --accent-rose: #f43f5e;    /* Neon Rose */
+    --accent-amber: #f59e0b;   /* Amber Gold */
     
-    --shadow-premium: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --shadow-premium: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
     --blur-glass: blur(12px);
     --font-outfit: 'Outfit', sans-serif;
     --sidebar-width: 260px;
 }
+
 
 * {
     box-sizing: border-box;
