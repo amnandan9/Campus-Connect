@@ -1,0 +1,581 @@
+{% extends 'coaching/base.html' %}
+
+{% block title %}Teacher Dashboard{% endblock %}
+{% block active_teacher_dashboard %}active{% endblock %}
+{% block active_student_directory %}active{% endblock %}
+{% block page_title %}Teacher Control Panel{% endblock %}
+
+{% block extra_head %}
+<style>
+    .calendar-day.weekend-holiday {
+        border-color: rgba(244, 63, 94, 0.4) !important;
+        background-color: rgba(244, 63, 94, 0.06) !important;
+    }
+    .calendar-day.weekend-holiday .calendar-day-number {
+        color: var(--accent-rose) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- KPI Indicators -->
+<div class="kpi-grid">
+    <div class="kpi-card purple">
+        <div>
+            <div class="kpi-title">Today's Attendance</div>
+            <div class="kpi-value">{{ todays_attendance_rate }}%</div>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">{{ todays_present }} / {{ todays_total }} present</span>
+        </div>
+    </div>
+
+    <div class="kpi-card rose">
+        <div>
+            <div class="kpi-title">Overdue Fees</div>
+            <div class="kpi-value">{{ pending_dues_count }}</div>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Students past due date</span>
+        </div>
+    </div>
+    <div class="kpi-card amber">
+        <div>
+            <div class="kpi-title">New Registrations</div>
+            <div class="kpi-value">{{ new_registers_count }}</div>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">In the last 30 days</span>
+        </div>
+    </div>
+</div>
+
+    <!-- Daily Attendance Lock & Submit Section -->
+    <div class="card-premium" style="margin-bottom: 24px; width: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <h3 style="color: var(--accent-indigo); margin-bottom: 4px;"><i class="fa-solid fa-lock" style="margin-right: 6px;"></i> Daily Attendance Submission Lock</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">Submit and lock attendance for the day. Once submitted, editing and re-submitting is disabled.</p>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px;">
+            {% for batch in batches %}
+            <div style="padding: 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="font-size: 1rem; color: var(--text-primary);">{{ batch.name }}</strong>
+                        <span id="lock-badge-{{ batch.id }}" class="badge {% if batch.is_locked_today %}badge-danger{% else %}badge-success{% endif %}">
+                            {% if batch.is_locked_today %}Submitted (Locked){% else %}Draft (Unlocked){% endif %}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 6px;">Start Time: {{ batch.get_effective_start_time|time:"h:i A" }}</div>
+                    
+                    <div style="margin-top: 10px;">
+                        <label style="font-size: 0.75rem; color: var(--accent-indigo); display: block; margin-bottom: 4px;">
+                            <i class="fa-solid fa-bullhorn" style="margin-right: 4px;"></i> Teacher Tip / Assignment (Scan Read-Aloud)
+                        </label>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="batch-note-{{ batch.id }}" class="form-control" style="font-size: 0.8rem; padding: 6px 10px;" placeholder="e.g. Complete Ex 4.2 Q1-5 today!" value="{{ batch.daily_note|default:'' }}">
+                            <button onclick="saveBatchNote({{ batch.id }})" class="btn-premium btn-secondary" style="padding: 6px 10px; font-size: 0.8rem; flex-shrink: 0;" title="Save note">
+                                <i class="fa-solid fa-floppy-disk"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 14px;">
+                    <button onclick="toggleBatchLock({{ batch.id }}, '{{ today|date:'Y-m-d' }}')" id="lock-btn-{{ batch.id }}" class="btn-premium {% if batch.is_locked_today %}btn-secondary{% endif %}" style="width: 100%; padding: 8px 12px; font-size: 0.8rem;">
+                        {% if batch.is_locked_today %}
+                            <i class="fa-solid fa-lock-open" style="margin-right: 6px;"></i> Unlock Attendance
+                        {% else %}
+                            <i class="fa-solid fa-lock" style="margin-right: 6px;"></i> Submit & Lock for Day
+                        {% endif %}
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card-premium">
+        <div class="card-header-flex" style="flex-wrap: wrap; gap: 8px;">
+            <h2>Student Directory</h2>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <a href="{% if selected_batch %}{% url 'print_qr_sheet_batch' batch_id=selected_batch %}{% else %}{% url 'print_qr_sheet' %}{% endif %}" target="_blank" class="btn-premium btn-secondary" style="padding: 8px 12px; font-size: 0.8rem; display: inline-flex; align-items: center;">
+                    <i class="fa-solid fa-print" style="margin-right: 6px;"></i> Print QRs
+                </a>
+                <a href="{% url 'export_attendance_csv' %}{% if selected_batch %}?batch={{ selected_batch }}{% endif %}" class="btn-premium btn-secondary" style="padding: 8px 12px; font-size: 0.8rem; display: inline-flex; align-items: center;">
+                    <i class="fa-solid fa-file-csv" style="margin-right: 6px;"></i> Export Attendance
+                </a>
+                <a href="{% url 'register_student' %}" class="btn-premium" style="padding: 8px 12px; font-size: 0.8rem; display: inline-flex; align-items: center;">
+                    <i class="fa-solid fa-user-plus" style="margin-right: 6px;"></i> Register
+                </a>
+            </div>
+        </div>
+        
+        <!-- Filters Form -->
+        <form method="get" action="{% url 'teacher_dashboard' %}" class="filters-grid">
+            <div>
+                <label for="q" class="form-label" style="font-size: 0.8rem;">Search Name / College</label>
+                <input type="text" name="q" id="q" class="form-control" style="padding: 8px 12px;" placeholder="Search..." value="{{ search_query }}">
+            </div>
+            <div>
+                <label for="batch" class="form-label" style="font-size: 0.8rem;">Filter Batch</label>
+                <select name="batch" id="batch" class="form-control" style="padding: 8px 12px;">
+                    <option value="">All Batches</option>
+                    {% for batch in batches %}
+                        <option value="{{ batch.id }}" {% if selected_batch == batch.id|stringformat:"i" %}selected{% endif %}>{{ batch.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="due" class="form-label" style="font-size: 0.8rem;">Fee Status</label>
+                <select name="due" id="due" class="form-control" style="padding: 8px 12px;">
+                    <option value="">All Statuses</option>
+                    <option value="overdue" {% if selected_due == 'overdue' %}selected{% endif %}>Not Paid</option>
+                    <option value="cleared" {% if selected_due == 'cleared' %}selected{% endif %}>Paid</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-premium" style="padding: 10px 16px; font-size: 0.9rem; height: 38px; display: flex; align-items: center;">
+                <i class="fa-solid fa-filter"></i>
+            </button>
+        </form>
+
+        <div class="table-wrapper">
+            <table class="table-premium">
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Batch</th>
+                        <th>Today's Attendance</th>
+                        <th>Fee Status</th>
+                        <th>Assigned HW / Task</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>
+                            <strong>{{ student.user.get_full_name }}</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">@{{ student.user.username }}</div>
+                        </td>
+                        <td>{{ student.batch.name|default:"Unassigned" }}</td>
+                        <td>
+                            <div id="att-cell-{{ student.id }}">
+                                {% if student.is_batch_locked_today %}
+                                    {% if student.today_record and student.today_record.status == 'present' %}
+                                        <span class="badge badge-success" title="Batch attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Present</span>
+                                    {% elif student.today_record and student.today_record.status == 'late' %}
+                                        <span class="badge badge-warning" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4);" title="Batch attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Late ({{ student.today_record.minutes_late }}m)</span>
+                                    {% else %}
+                                        <span class="badge badge-danger" title="Batch attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Absent</span>
+                                    {% endif %}
+                                {% else %}
+                                    {% if student.today_record and student.today_record.status == 'present' %}
+                                        <button onclick="toggleStudentAtt({{ student.id }}, 'absent')" class="btn-premium" style="padding: 5px 10px; font-size: 0.75rem; background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); border: 1px solid var(--accent-emerald);">
+                                            <i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i> Present (On Time)
+                                        </button>
+                                    {% elif student.today_record and student.today_record.status == 'late' %}
+                                        <button onclick="toggleStudentAtt({{ student.id }}, 'absent')" class="btn-premium" style="padding: 5px 10px; font-size: 0.75rem; background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid var(--accent-amber);">
+                                            <i class="fa-solid fa-clock" style="margin-right: 4px;"></i> Late ({{ student.today_record.minutes_late }}m)
+                                        </button>
+                                    {% else %}
+                                        <button onclick="toggleStudentAtt({{ student.id }}, 'present')" class="btn-premium btn-secondary" style="padding: 5px 10px; font-size: 0.75rem;">
+                                            <i class="fa-solid fa-circle-plus" style="margin-right: 4px;"></i> Mark Present
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if student.is_paid_this_month %}
+                                <span class="badge badge-success">Paid</span>
+                            {% else %}
+                                <span class="badge badge-danger">Not Paid</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 4px; align-items: center; min-width: 170px;">
+                                <input type="text" id="student-note-{{ student.id }}" class="form-control" style="font-size: 0.75rem; padding: 4px 8px; flex: 1;" placeholder="Individual HW task..." value="{{ student.individual_note|default:'' }}">
+                                <button onclick="saveStudentNote({{ student.id }})" class="btn-premium btn-secondary" style="padding: 4px 8px; font-size: 0.75rem; flex-shrink: 0;" title="Save task">
+                                    <i class="fa-solid fa-floppy-disk"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <a href="{% url 'student_detail' student_id=student.id %}" class="btn-premium btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                                View File
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 24px;">No students match the criteria.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Right Column: Calendar & Overdues -->
+    <div style="display: flex; flex-direction: column; gap: 32px;">
+        <!-- Interactive Calendar -->
+        <div class="calendar-widget">
+            <div class="calendar-header">
+                <h3 id="calendarMonthTitle" style="color: var(--accent-indigo);">Month</h3>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-premium btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick="prevMonth()"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button class="btn-premium btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick="nextMonth()"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </div>
+
+        <!-- Add Schedule Form -->
+        <div class="card-premium" style="padding: 24px;">
+            <h3 style="margin-bottom: 16px;">Schedule Class / Holiday</h3>
+            <form method="post" action="{% url 'add_class_schedule' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="sched_batch" class="form-label" style="font-size: 0.8rem;">Batch</label>
+                    <select name="batch" id="sched_batch" class="form-control" style="padding: 8px 12px;" required>
+                        {% for batch in batches %}
+                            <option value="{{ batch.id }}">{{ batch.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="sched_title" class="form-label" style="font-size: 0.8rem;">Title / Event Name</label>
+                    <input type="text" name="title" id="sched_title" class="form-control" style="padding: 8px 12px;" placeholder="e.g. Organic Chemistry Intro" required>
+                </div>
+                <div class="form-grid" style="gap: 12px; margin-bottom: 16px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="sched_date" class="form-label" style="font-size: 0.8rem;">Date</label>
+                        <input type="date" name="date" id="sched_date" class="form-control" style="padding: 8px 12px;" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="sched_start" class="form-label" style="font-size: 0.8rem;">Start Time</label>
+                        <input type="time" name="start_time" id="sched_start" class="form-control" style="padding: 8px 12px;" required>
+                    </div>
+                </div>
+                <div class="form-grid" style="gap: 12px; margin-bottom: 16px; align-items: end;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="sched_end" class="form-label" style="font-size: 0.8rem;">End Time</label>
+                        <input type="time" name="end_time" id="sched_end" class="form-control" style="padding: 8px 12px;" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0; display: flex; align-items: center; height: 38px; gap: 8px;">
+                        <input type="checkbox" name="is_holiday" id="sched_holiday">
+                        <label for="sched_holiday" style="font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">Is Holiday</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn-premium" style="width: 100%; padding: 8px 16px; font-size: 0.9rem;">
+                    Add to Calendar
+                </button>
+            </form>
+        </div>
+
+        <!-- Overdue list -->
+        <div class="card-premium" style="padding: 24px;">
+            <h3 style="margin-bottom: 16px; color: var(--accent-rose);">Pending Dues</h3>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                {% for over_std in overdue_students %}
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background-color: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.15); border-radius: 12px;">
+                    <div>
+                        <strong style="font-size: 0.9rem;">{{ over_std.user.get_full_name }}</strong>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Fee: ₹{{ over_std.monthly_fee }}</div>
+                    </div>
+                    <a href="{% url 'student_detail' student_id=over_std.id %}" class="btn-premium" style="padding: 6px 12px; font-size: 0.75rem; background: var(--accent-rose); box-shadow: none;">
+                        Collect
+                    </a>
+                </div>
+                {% empty %}
+                <p style="color: var(--text-secondary); font-size: 0.85rem; text-align: center;">All dues are currently cleared!</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Pass data from Django to JS
+    const classEvents = [
+        {% for cl in calendar_classes %}
+            {
+                title: "{{ cl.title }}",
+                date: "{{ cl.date|date:'Y-m-d' }}",
+                is_holiday: {% if cl.is_holiday %}true{% else %}false{% endif %}
+            },
+        {% endfor %}
+    ];
+
+    const feeDues = [
+        {% for std in students %}
+            {
+                name: "{{ std.user.get_full_name }}",
+                date: "{{ std.next_due_date|date:'Y-m-d' }}"
+            },
+        {% endfor %}
+    ];
+
+    const attendanceDates = {{ attendance_dates_json|safe }};
+
+    let currentYear = new Date().getFullYear();
+    let currentMonth = new Date().getMonth();
+
+    const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+
+    function drawCalendar(year, month) {
+        const grid = document.getElementById('calendarGrid');
+        const title = document.getElementById('calendarMonthTitle');
+        
+        // Clear grid
+        grid.innerHTML = '';
+        
+        title.innerText = `${monthNames[month]} ${year}`;
+        
+        // Add Day Labels
+        const days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+        days.forEach(day => {
+            const el = document.createElement('div');
+            el.className = 'calendar-day-label';
+            el.innerText = day;
+            grid.appendChild(el);
+        });
+        
+        const firstDayIndex = new Date(year, month, 1).getDay();
+        const numDays = new Date(year, month + 1, 0).getDate();
+        
+        // Padding for previous month days
+        for (let i = 0; i < firstDayIndex; i++) {
+            const el = document.createElement('div');
+            el.style.opacity = '0';
+            grid.appendChild(el);
+        }
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Add Days
+        for (let d = 1; d <= numDays; d++) {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'calendar-day';
+            
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            
+            if (dateStr === todayStr) {
+                dayEl.classList.add('today');
+            }
+            
+            // Check if day is weekend (Sat/Sun) and has no attendance recorded
+            const dateObj = new Date(year, month, d);
+            const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+            const hasAttendance = attendanceDates.includes(dateStr);
+            
+            if (isWeekend && !hasAttendance) {
+                dayEl.classList.add('weekend-holiday');
+            }
+            
+            dayEl.innerHTML = `<span class="calendar-day-number">${d}</span>`;
+            
+            // Check events
+            const dotsEl = document.createElement('div');
+            dotsEl.className = 'calendar-dots';
+            
+            const dayClasses = classEvents.filter(e => e.date === dateStr);
+            const dayDues = feeDues.filter(e => e.date === dateStr);
+            
+            let hasClass = dayClasses.some(c => !c.is_holiday);
+            let hasHoliday = dayClasses.some(c => c.is_holiday);
+            let hasDue = dayDues.length > 0;
+            
+            if (hasClass) {
+                const dot = document.createElement('div');
+                dot.className = 'dot dot-class';
+                dot.title = dayClasses.map(c => c.title).join(', ');
+                dotsEl.appendChild(dot);
+            }
+            if (hasHoliday) {
+                const dot = document.createElement('div');
+                dot.className = 'dot dot-holiday';
+                dot.title = "Holiday: " + dayClasses.filter(c => c.is_holiday).map(c => c.title).join(', ');
+                dotsEl.appendChild(dot);
+            }
+            if (hasDue) {
+                dayDues.forEach(due => {
+                    const dueBadge = document.createElement('div');
+                    dueBadge.style.fontSize = '0.65rem';
+                    dueBadge.style.fontWeight = '600';
+                    dueBadge.style.lineHeight = '1.2';
+                    dueBadge.style.padding = '2px 4px';
+                    dueBadge.style.marginTop = '2px';
+                    dueBadge.style.borderRadius = '4px';
+                    dueBadge.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                    dueBadge.style.color = '#f87171';
+                    dueBadge.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+                    dueBadge.style.whiteSpace = 'nowrap';
+                    dueBadge.style.overflow = 'hidden';
+                    dueBadge.style.textOverflow = 'ellipsis';
+                    dueBadge.style.maxWidth = '100%';
+                    dueBadge.innerHTML = `<span class="due-name-desktop"><i class="fa-solid fa-coins" style="font-size:0.6rem; margin-right:2px;"></i> ${due.name}</span><span class="due-name-mobile" title="Fee Due: ${due.name}">💰</span>`;
+                    dueBadge.title = `Fee Due: ${due.name}`;
+                    dotsEl.appendChild(dueBadge);
+                });
+            }
+            
+            dayEl.appendChild(dotsEl);
+            grid.appendChild(dayEl);
+        }
+    }
+
+    function prevMonth() {
+        currentMonth--;
+        if (currentMonth < 0) {
+            currentMonth = 11;
+            currentYear--;
+        }
+        drawCalendar(currentYear, currentMonth);
+    }
+
+    function nextMonth() {
+        currentMonth++;
+        if (currentMonth > 11) {
+            currentMonth = 0;
+            currentYear++;
+        }
+        drawCalendar(currentYear, currentMonth);
+    }
+
+    function toggleStudentAtt(studentId, targetAction) {
+        const cell = document.getElementById(`att-cell-${studentId}`);
+        if (!cell) return;
+        cell.style.opacity = '0.5';
+
+        fetch("{% url 'toggle_student_attendance_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                student_id: studentId,
+                action: targetAction
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            cell.style.opacity = '1';
+            if (data.success) {
+                if (data.status === 'present') {
+                    cell.innerHTML = `<button onclick="toggleStudentAtt(${studentId}, 'absent')" class="btn-premium" style="padding: 5px 10px; font-size: 0.75rem; background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); border: 1px solid var(--accent-emerald);"><i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i> Present (${data.timing_str || 'On Time'})</button>`;
+                } else if (data.status === 'late') {
+                    cell.innerHTML = `<button onclick="toggleStudentAtt(${studentId}, 'absent')" class="btn-premium" style="padding: 5px 10px; font-size: 0.75rem; background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid var(--accent-amber);"><i class="fa-solid fa-clock" style="margin-right: 4px;"></i> Late (${data.minutes_late}m)</button>`;
+                } else {
+                    cell.innerHTML = `<button onclick="toggleStudentAtt(${studentId}, 'present')" class="btn-premium btn-secondary" style="padding: 5px 10px; font-size: 0.75rem;"><i class="fa-solid fa-circle-plus" style="margin-right: 4px;"></i> Mark Present</button>`;
+                }
+            } else {
+                alert(data.message || 'Action failed.');
+            }
+        })
+        .catch(err => {
+            cell.style.opacity = '1';
+            console.error(err);
+            alert('Server communication error.');
+        });
+    }
+
+    function toggleBatchLock(batchId, dateStr) {
+        const btn = document.getElementById(`lock-btn-${batchId}`);
+        const badge = document.getElementById(`lock-badge-${batchId}`);
+        const isCurrentlyLocked = badge.classList.contains('badge-danger');
+        const newLockState = !isCurrentlyLocked;
+
+        fetch("{% url 'toggle_attendance_lock_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                batch_id: batchId,
+                date: dateStr,
+                is_locked: newLockState
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.message || 'Action failed.');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Server communication error.');
+        });
+    }
+
+    function saveBatchNote(batchId) {
+        const noteInput = document.getElementById(`batch-note-${batchId}`);
+        const noteText = noteInput ? noteInput.value : '';
+
+        fetch("{% url 'save_batch_note_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                batch_id: batchId,
+                daily_note: noteText
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+            } else {
+                alert(data.message || 'Save failed.');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Server communication error.');
+        });
+    }
+
+    function saveStudentNote(studentId) {
+        const noteInput = document.getElementById(`student-note-${studentId}`);
+        const noteText = noteInput ? noteInput.value : '';
+
+        fetch("{% url 'save_student_note_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                student_id: studentId,
+                individual_note: noteText
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+            } else {
+                alert(data.message || 'Save failed.');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Server communication error.');
+        });
+    }
+
+    // Init drawing
+    drawCalendar(currentYear, currentMonth);
+</script>
+{% endblock %}

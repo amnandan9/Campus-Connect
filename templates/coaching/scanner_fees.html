@@ -1,0 +1,298 @@
+{% extends 'coaching/base.html' %}
+
+{% block title %}Collect Fees Terminal{% endblock %}
+{% block active_fee_scan %}active{% endblock %}
+{% block page_title %}Fee Collection Terminal{% endblock %}
+
+{% block extra_head %}
+<style>
+    #qrReader {
+        border: none !important;
+        border-radius: 20px;
+        overflow: hidden;
+        width: 100% !important;
+        max-width: 440px;
+        aspect-ratio: 4/3;
+        margin: 0 auto;
+        background-color: #000;
+        box-shadow: var(--shadow-premium);
+    }
+    #qrReader__dashboard, #qrReader__status_span {
+        display: none !important;
+    }
+    #qrReader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        transform: scaleX(-1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card-premium" style="max-width: 600px; margin: 0 auto; text-align: center;">
+    <h2 style="margin-bottom: 8px; color: var(--accent-indigo);">Fee Collection Terminal</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 24px;">Scan student's QR card or search card token to log monthly payment</p>
+    
+    <!-- Flip Camera Button -->
+    <div style="margin-bottom: 20px; text-align: center;">
+        <button onclick="toggleCameraFacing()" class="btn-premium btn-secondary" id="flipCameraBtn" style="padding: 8px 16px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-camera-rotate"></i> Flip Camera
+        </button>
+    </div>
+
+    <div class="scanner-container">
+        <!-- QR Scanner viewport -->
+        <div id="qrReader" style="width: 100%; display: block;"></div>
+        
+        <div class="scanner-status" id="scanStatus" style="width: 100%; margin-top: 16px;">
+            Initializing terminal...
+        </div>
+        
+        <!-- Manual Check-in Fallback Form -->
+        <div id="manualCheckinContainer" style="display: none; margin-top: 24px; padding: 20px; border: 1px solid var(--border-color); border-radius: 16px; background-color: rgba(255, 255, 255, 0.01); width: 100%; text-align: left;">
+            <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--accent-indigo);">Manual Fee Search</h4>
+            <div style="display: flex; gap: 12px;">
+                <input type="text" id="manualTokenInput" class="form-control" placeholder="Enter student card token / username..." style="padding: 10px; font-size: 0.9rem; flex: 1;">
+                <button onclick="submitManualCheckin()" class="btn-premium" style="padding: 10px 16px; font-size: 0.9rem;">Search</button>
+            </div>
+        </div>
+        
+        <button onclick="toggleManualCheckin()" class="btn-premium btn-secondary" style="margin-top: 16px; width: 100%; padding: 10px;">
+            <i class="fa-solid fa-keyboard" style="margin-right: 6px;"></i> Type Card Token (No Camera)
+        </button>
+    </div>
+</div>
+
+<!-- Dynamic Fee Collection Modal -->
+<div class="modal-overlay" id="feeCollectionModal">
+    <div class="modal-premium">
+        <button class="modal-close" onclick="closeFeeModal()">&times;</button>
+        <h3 class="modal-title" style="margin-bottom: 16px;">Record Monthly Payment</h3>
+        
+        <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 24px; background-color: rgba(255, 255, 255, 0.02); padding: 12px; border-radius: 16px; border: 1px solid var(--border-color); text-align: left;">
+            <div>
+                <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Student Profile</span>
+                <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary);" id="modalStudentName">Alice Green</div>
+                <div style="font-size: 0.85rem; color: var(--accent-indigo);" id="modalStudentBatch">Morning Science</div>
+            </div>
+        </div>
+        
+        <form method="post" id="feeCollectionForm" action="">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="fee_amount" class="form-label">Payment Amount (₹)</label>
+                <input type="number" step="0.01" name="amount" id="fee_amount" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="next_due" class="form-label">Next Fee Due Date</label>
+                <input type="date" name="next_due_date" id="next_due" class="form-control" required>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label for="fee_remarks" class="form-label">Remarks</label>
+                <input type="text" name="remarks" id="fee_remarks" class="form-control" placeholder="e.g. Paid in Cash">
+            </div>
+            
+            <button type="submit" class="btn-premium" style="width: 100%;">
+                Log Fee Collection
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'coaching/html5-qrcode.min.js' %}"></script>
+<script>
+    let html5QrCode = null;
+    let isProcessing = false;
+    let currentFacingMode = "user";
+    let feeModalTimeout = null;
+
+    const scanStatus = document.getElementById('scanStatus');
+    const qrReaderDiv = document.getElementById('qrReader');
+    const feeModal = document.getElementById('feeCollectionModal');
+
+    function playBeep() {
+        try {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = context.createOscillator();
+            const gainNode = context.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(context.destination);
+            oscillator.type = "sine";
+            oscillator.frequency.value = 900;
+            gainNode.gain.setValueAtTime(0, context.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.3, context.currentTime + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.15);
+            oscillator.start(context.currentTime);
+            oscillator.stop(context.currentTime + 0.15);
+        } catch (e) {
+            console.error("Audio failed:", e);
+        }
+    }
+
+    function toggleCameraFacing() {
+        currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+        scanStatus.innerText = "Switching camera view...";
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode = null;
+                initQRScan();
+            }).catch(err => {
+                console.error(err);
+                initQRScan();
+            });
+        } else {
+            initQRScan();
+        }
+    }
+
+    function initQRScan() {
+        if (typeof Html5Qrcode === 'undefined') {
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Scanner library not loaded. Please use manual entry.</span>";
+            document.getElementById('manualCheckinContainer').style.display = 'block';
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Camera access blocked on insecure connections. Please use manual entry.</span>";
+            document.getElementById('manualCheckinContainer').style.display = 'block';
+            return;
+        }
+        scanStatus.innerText = "Requesting webcam for QR scan...";
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length > 0) {
+                html5QrCode = new Html5Qrcode("qrReader");
+                html5QrCode.start(
+                    { facingMode: currentFacingMode },
+                    { fps: 15, qrbox: (width, height) => { return { width: Math.min(width, height) * 0.8, height: Math.min(width, height) * 0.8 }; } },
+                    onQrSuccess,
+                    onQrError
+                )
+                .then(() => {
+                    scanStatus.innerText = "Scanning student QR card...";
+                })
+                .catch(err => {
+                    scanStatus.innerHTML = `<span style='color: var(--accent-rose); font-weight: 600;'>Webcam access blocked / denied.</span><br>Use manual token search below.`;
+                    document.getElementById('manualCheckinContainer').style.display = 'block';
+                });
+            } else {
+                scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>No camera hardware found.</span>";
+                document.getElementById('manualCheckinContainer').style.display = 'block';
+            }
+        }).catch(err => {
+            scanStatus.innerHTML = `<span style='color: var(--accent-rose); font-weight: 600;'>Webcam permission error.</span><br>Use manual token search below.`;
+            document.getElementById('manualCheckinContainer').style.display = 'block';
+        });
+    }
+
+    function onQrSuccess(decodedText, decodedResult) {
+        if (isProcessing) return;
+        isProcessing = true;
+
+        playBeep();
+        scanStatus.innerText = "QR Code detected! Fetching student billing...";
+        
+        fetch(`/api/get-student-qr/${decodedText}/`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loadFeeModal(data);
+            } else {
+                scanStatus.innerHTML = `<span style='color: var(--accent-rose);'>${data.message}</span>`;
+                setTimeout(() => {
+                    isProcessing = false;
+                    scanStatus.innerText = "Scanning student QR card...";
+                }, 2000);
+            }
+        })
+        .catch(err => {
+            isProcessing = false;
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Connection error. Resuming...</span>";
+            setTimeout(() => { isProcessing = false; }, 2000);
+        });
+    }
+
+    function onQrError(err) {}
+
+    function loadFeeModal(data) {
+        if (feeModalTimeout) {
+            clearTimeout(feeModalTimeout);
+            feeModalTimeout = null;
+        }
+
+        document.getElementById('modalStudentName').innerText = data.name;
+        document.getElementById('modalStudentBatch').innerText = data.batch;
+        document.getElementById('fee_amount').value = data.monthly_fee;
+        document.getElementById('next_due').value = data.recommended_due_date || data.next_due_date;
+        
+        document.getElementById('feeCollectionForm').action = `/student/collect-fee/${data.id}/`;
+        
+        feeModal.style.display = 'flex';
+        scanStatus.innerText = "Billing modal loaded for " + data.name;
+
+        feeModalTimeout = setTimeout(closeFeeModal, 20000);
+        document.querySelectorAll('#feeCollectionForm input').forEach(input => {
+            input.onfocus = () => {
+                if (feeModalTimeout) {
+                    clearTimeout(feeModalTimeout);
+                    feeModalTimeout = null;
+                }
+            };
+        });
+    }
+
+    function closeFeeModal() {
+        if (feeModalTimeout) {
+            clearTimeout(feeModalTimeout);
+            feeModalTimeout = null;
+        }
+        feeModal.style.display = 'none';
+        isProcessing = false;
+        scanStatus.innerText = "Scanning student QR card...";
+    }
+
+    function toggleManualCheckin() {
+        const container = document.getElementById('manualCheckinContainer');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    function submitManualCheckin() {
+        const tokenInput = document.getElementById('manualTokenInput');
+        const token = tokenInput.value.trim();
+        if (!token) {
+            alert("Please enter a valid card token.");
+            return;
+        }
+        
+        scanStatus.innerText = "Searching student card token...";
+        
+        fetch(`/api/get-student-qr/${token}/`)
+        .then(res => res.json())
+        .then(data => {
+            playBeep();
+            if (data.success) {
+                loadFeeModal(data);
+                tokenInput.value = '';
+            } else {
+                scanStatus.innerHTML = `<span style='color: var(--accent-rose);'>${data.message}</span>`;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Server communication error.</span>";
+        });
+    }
+
+    window.onload = function() {
+        initQRScan();
+    }
+</script>
+{% endblock %}

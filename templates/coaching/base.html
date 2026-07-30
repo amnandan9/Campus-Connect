@@ -1,0 +1,316 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Campus-Connect{% endblock %}</title>
+    <link rel="icon" type="image/png" sizes="512x512" href="{% static 'coaching/logo.png' %}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'coaching/logo.png' %}">
+    <link rel="apple-touch-icon" sizes="512x512" href="{% static 'coaching/logo.png' %}">
+    <link rel="shortcut icon" type="image/png" href="{% static 'coaching/logo.png' %}">
+    
+    <!-- Premium stylesheet -->
+    <link rel="stylesheet" href="{% static 'coaching/style.css' %}?v=3">
+    
+    <!-- Icons (Optional but highly recommended for design aesthetics) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Messages Container -->
+    {% if messages %}
+    <div class="alert-container">
+        {% for message in messages %}
+        <div class="alert-message alert-{% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% else %}warning{% endif %}">
+            {% if message.tags == 'success' %}
+                <i class="fa-solid fa-circle-check"></i>
+            {% elif message.tags == 'error' %}
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            {% else %}
+                <i class="fa-solid fa-circle-info"></i>
+            {% endif %}
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    <script>
+        // Auto-dismiss alerts after 4 seconds
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert-message');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s ease';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 4000);
+
+        // Success beep sound
+        try {
+            const hasSuccess = document.querySelector('.alert-message.alert-success');
+            if (hasSuccess) {
+                const context = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = context.createOscillator();
+                const gainNode = context.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(context.destination);
+                oscillator.type = "sine";
+                oscillator.frequency.value = 900;
+                gainNode.gain.setValueAtTime(0, context.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, context.currentTime + 0.05);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.15);
+                oscillator.start(context.currentTime);
+                oscillator.stop(context.currentTime + 0.15);
+            }
+        } catch (e) {
+            console.error("Audio beep failed:", e);
+        }
+    </script>
+    {% endif %}
+
+    {% if user.is_authenticated %}
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <a href="{% url 'dashboard_redirect' %}" class="sidebar-brand-link">
+                <img src="{% static 'coaching/logo.png' %}" alt="Campus-Connect Logo" style="height: 72px; width: 72px; object-fit: contain; flex-shrink: 0;">
+                <span style="font-weight: 700; line-height: 1.2; white-space: normal;">Campus-Connect</span>
+            </a>
+        </div>
+        <div style="padding: 16px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); background-color: rgba(0,0,0,0.15);">
+            <div style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; border: 2px solid var(--accent-indigo); cursor: pointer; flex-shrink: 0; background-color: var(--bg-primary); display: flex; align-items: center; justify-content: center;" onclick="openProfilePhotoModal()" title="Click to upload profile photo">
+                {% if user.face_data %}
+                    <img id="sidebarUserPhoto" src="{{ user.face_data }}" style="width: 100%; height: 100%; object-fit: cover;">
+                {% else %}
+                    <i class="fa-solid fa-user-gear" style="font-size: 1.2rem; color: var(--text-secondary);"></i>
+                {% endif %}
+            </div>
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary); cursor: pointer;" onclick="openProfilePhotoModal()">{{ user.get_full_name|default:user.username }}</div>
+                <div style="font-size: 0.7rem; color: var(--accent-indigo); text-transform: uppercase;">{{ user.get_role_display|default:user.role }}</div>
+            </div>
+        </div>
+        <ul class="sidebar-menu">
+            {% if user.role == 'super_admin' or user.is_superuser %}
+                <li>
+                    <a href="{% url 'super_admin_dashboard' %}" class="sidebar-link {% block active_dashboard %}{% endblock %}">
+                        <i class="fa-solid fa-chart-line"></i> Admin Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'teacher_dashboard' %}" class="sidebar-link {% block active_student_directory %}{% endblock %}">
+                        <i class="fa-solid fa-chart-pie"></i> Student Directory
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_attendance' %}" class="sidebar-link {% block active_att_scan_admin %}{% endblock %}">
+                        <i class="fa-solid fa-qrcode"></i> Attendance Scanner
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_corrections' %}" class="sidebar-link {% block active_corr_scan_admin %}{% endblock %}">
+                        <i class="fa-solid fa-book-bookmark"></i> Correction & Marks QR
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_movement' %}" class="sidebar-link {% block active_mov_scan_admin %}{% endblock %}">
+                        <i class="fa-solid fa-person-walking-arrow-right"></i> Class In/Out Scanner
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_fees' %}" class="sidebar-link {% block active_fee_scan_admin %}{% endblock %}">
+                        <i class="fa-solid fa-receipt"></i> Fee Collection Scanner
+                    </a>
+                </li>
+            {% elif user.role == 'teacher' %}
+                <li>
+                    <a href="{% url 'teacher_dashboard' %}" class="sidebar-link {% block active_teacher_dashboard %}{% endblock %}">
+                        <i class="fa-solid fa-chart-pie"></i> Teacher Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'register_student' %}" class="sidebar-link {% block active_register %}{% endblock %}">
+                        <i class="fa-solid fa-user-plus"></i> Register Student
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_attendance' %}" class="sidebar-link {% block active_att_scan %}{% endblock %}">
+                        <i class="fa-solid fa-qrcode"></i> Attendance Scanner
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_corrections' %}" class="sidebar-link {% block active_corr_scan %}{% endblock %}">
+                        <i class="fa-solid fa-book-bookmark"></i> Correction & Marks QR
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_movement' %}" class="sidebar-link {% block active_mov_scan %}{% endblock %}">
+                        <i class="fa-solid fa-person-walking-arrow-right"></i> Class In/Out Scanner
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'scanner_fees' %}" class="sidebar-link {% block active_fee_scan %}{% endblock %}">
+                        <i class="fa-solid fa-receipt"></i> Fee Collection Scanner
+                    </a>
+                </li>
+            {% elif user.role == 'student' %}
+                {% if user.username == 'scanner' %}
+                    <li>
+                        <a href="{% url 'scanner_attendance' %}" class="sidebar-link active">
+                            <i class="fa-solid fa-qrcode"></i> Attendance Terminal
+                        </a>
+                    </li>
+                {% endif %}
+            {% endif %}
+
+            <li class="mobile-only">
+                <a href="{% url 'logout' %}" class="sidebar-link" style="color: var(--accent-rose)">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <a href="{% url 'logout' %}" class="sidebar-link" style="color: var(--accent-rose)">
+                <i class="fa-solid fa-right-from-bracket"></i> Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <header class="topbar">
+            <div>
+                <h3>{% block page_title %}Dashboard{% endblock %}</h3>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <span style="color: var(--text-secondary)">
+                    Welcome, <strong>{{ user.get_full_name|default:user.username }}</strong> 
+                    <span class="badge badge-info" style="margin-left: 8px;">{{ user.get_role_display }}</span>
+                </span>
+            </div>
+        </header>
+        
+        <main class="content-container">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% else %}
+        <!-- If not authenticated (login page) -->
+        {% block auth_content %}{% endblock %}
+    {% endif %}
+
+    <!-- Profile Photo Upload Modal (Gallery Upload) -->
+    <div class="modal-overlay" id="profilePhotoModal" style="z-index: 2000;">
+        <div class="modal-premium" style="max-width: 420px; text-align: center;">
+            <button class="modal-close" onclick="closeProfilePhotoModal()">&times;</button>
+            <h3 class="modal-title">Upload Profile Photo</h3>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 20px;">Select a profile picture from your gallery or files.</p>
+            
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 24px;">
+                <div style="width: 140px; height: 140px; border-radius: 50%; overflow: hidden; border: 2px solid var(--accent-indigo); background-color: var(--bg-primary); display: flex; align-items: center; justify-content: center; position: relative;">
+                    {% if user.face_data %}
+                        <img id="profModalPreview" src="{{ user.face_data }}" style="width: 100%; height: 100%; object-fit: cover;">
+                    {% else %}
+                        <img id="profModalPreview" style="display:none; width: 100%; height: 100%; object-fit: cover;">
+                        <i class="fa-solid fa-user-gear" id="profModalIcon" style="font-size: 3rem; color: var(--text-secondary);"></i>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <button type="button" class="btn-premium btn-secondary" onclick="document.getElementById('userProfFileInput').click()" style="font-size: 0.85rem; padding: 8px 16px;">
+                        <i class="fa-solid fa-image" style="margin-right: 6px;"></i> Choose Photo from Gallery
+                    </button>
+                    <input type="file" accept="image/*" id="userProfFileInput" style="display: none;" onchange="handleUserProfFile(this)">
+                </div>
+            </div>
+            
+            <button type="button" class="btn-premium" onclick="saveUserProfPhoto()" style="width: 100%;">
+                Save Profile Photo
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let base64UserPhoto = null;
+
+        function openProfilePhotoModal() {
+            const m = document.getElementById('profilePhotoModal');
+            if (m) m.style.display = 'flex';
+        }
+
+        function closeProfilePhotoModal() {
+            const m = document.getElementById('profilePhotoModal');
+            if (m) m.style.display = 'none';
+        }
+
+        function handleUserProfFile(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    base64UserPhoto = e.target.result;
+                    const imgEl = document.getElementById('profModalPreview');
+                    imgEl.src = base64UserPhoto;
+                    imgEl.style.display = 'block';
+                    const icon = document.getElementById('profModalIcon');
+                    if (icon) icon.style.display = 'none';
+
+                    try {
+                        const img = new Image();
+                        img.onload = function() {
+                            const canvas = document.createElement('canvas');
+                            const size = 300;
+                            canvas.width = size;
+                            canvas.height = size;
+                            const ctx = canvas.getContext('2d');
+                            
+                            let minDim = Math.min(img.width, img.height);
+                            let sx = (img.width - minDim) / 2;
+                            let sy = (img.height - minDim) / 2;
+                            
+                            ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+                            base64UserPhoto = canvas.toDataURL('image/jpeg', 0.85);
+                            imgEl.src = base64UserPhoto;
+                        };
+                        img.src = e.target.result;
+                    } catch (err) {
+                        console.error("Canvas crop error, keeping original:", err);
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function saveUserProfPhoto() {
+            if (!base64UserPhoto) {
+                alert("Please select a photo from gallery first.");
+                return;
+            }
+            fetch("{% url 'update_profile_photo_api' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ image: base64UserPhoto })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert("Error: " + data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Server communication error.");
+            });
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+</html>

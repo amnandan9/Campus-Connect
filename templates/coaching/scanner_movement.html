@@ -1,0 +1,193 @@
+{% extends 'coaching/base.html' %}
+
+{% block title %}Classroom In/Out Timing QR | Campus-Connect{% endblock %}
+{% block active_mov_scan %}active{% endblock %}
+{% block active_mov_scan_admin %}active{% endblock %}
+{% block page_title %}Classroom In/Out Movement Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+    #qrReader {
+        border: none !important;
+        border-radius: 20px;
+        overflow: hidden;
+        width: 100% !important;
+        max-width: 440px;
+        aspect-ratio: 4/3;
+        margin: 0 auto;
+        background-color: #000;
+        box-shadow: var(--shadow-premium);
+    }
+    #qrReader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card-premium" style="max-width: 750px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin-bottom: 8px;"><i class="fa-solid fa-person-walking-arrow-right" style="color: var(--accent-indigo);"></i> Classroom In/Out QR Scanner</h2>
+        <p style="color: var(--text-secondary);">Scan student QR code when leaving or returning to class to log exact exit and entry timestamps.</p>
+    </div>
+
+    <!-- Movement Controls -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 16px; border: 1px solid var(--border-color);">
+        <div>
+            <label class="form-label" for="movementType">Movement Action</label>
+            <select id="movementType" class="form-control">
+                <option value="OUT" selected>🚨 Student Leaving Class (OUT)</option>
+                <option value="IN">✅ Student Returning / Entering Class (IN)</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label" for="reasonInput">Reason / Purpose</label>
+            <input type="text" id="reasonInput" class="form-control" placeholder="e.g. Restroom, Library, Admin office" value="Restroom break">
+        </div>
+
+        <div>
+            <label class="form-label" for="subjectSelect">Current Subject Class</label>
+            <select id="subjectSelect" class="form-control">
+                <option value="">-- Select Subject (Optional) --</option>
+                {% for sub in subjects %}
+                    <option value="{{ sub.id }}">{{ sub.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Scanner Viewport -->
+    <div style="text-align: center; margin-bottom: 24px;">
+        <button onclick="toggleCameraFacing()" class="btn-premium btn-secondary" style="padding: 8px 16px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;">
+            <i class="fa-solid fa-camera-rotate"></i> Flip Camera
+        </button>
+        <div id="qrReader"></div>
+    </div>
+
+    <!-- Feedback banner -->
+    <div id="scanResult" style="display: none; padding: 16px; border-radius: 12px; margin-bottom: 24px; text-align: center; font-weight: 600;"></div>
+</div>
+
+<!-- Log History Table -->
+<div class="card-premium" style="max-width: 750px; margin: 30px auto 0;">
+    <h3 style="margin-bottom: 16px;"><i class="fa-solid fa-clock-rotate-left"></i> Today's Classroom Movement Logs</h3>
+    <div class="table-responsive">
+        <table class="table-premium">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Student</th>
+                    <th>Action</th>
+                    <th>Reason</th>
+                    <th>Subject</th>
+                    <th>Recorded By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in recent_logs %}
+                <tr>
+                    <td>{{ log.timestamp|date:"H:i:s" }}</td>
+                    <td><strong>{{ log.student.user.get_full_name }}</strong></td>
+                    <td>
+                        <span class="badge {% if log.movement_type == 'OUT' %}badge-danger{% else %}badge-success{% endif %}">
+                            {% if log.movement_type == 'OUT' %}<i class="fa-solid fa-right-from-bracket"></i> LEFT CLASS{% else %}<i class="fa-solid fa-right-to-bracket"></i> ENTERED CLASS{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ log.reason|default:"Classroom Exit" }}</td>
+                    <td>{{ log.subject.name|default:"General" }}</td>
+                    <td>{{ log.teacher.get_full_name|default:log.teacher.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: var(--text-secondary);">No movement logs recorded today.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- html5-qrcode script -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+    let html5QrCode = null;
+    let currentFacingMode = "environment";
+    let isProcessing = false;
+
+    function initScanner() {
+        html5QrCode = new Html5Qrcode("qrReader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        
+        html5QrCode.start(
+            { facingMode: currentFacingMode },
+            config,
+            onScanSuccess
+        ).catch(err => {
+            console.error("Camera error:", err);
+        });
+    }
+
+    function toggleCameraFacing() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+                initScanner();
+            });
+        }
+    }
+
+    function onScanSuccess(decodedText) {
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        const movementType = document.getElementById("movementType").value;
+        const reason = document.getElementById("reasonInput").value || "Class exit";
+        const subjectId = document.getElementById("subjectSelect").value;
+
+        const resDiv = document.getElementById("scanResult");
+        resDiv.style.display = "block";
+        resDiv.style.backgroundColor = "rgba(99, 102, 241, 0.2)";
+        resDiv.style.color = "#818cf8";
+        resDiv.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Logging student movement...`;
+
+        fetch("{% url 'record_movement_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({
+                qr_token: decodedText,
+                movement_type: movementType,
+                reason: reason,
+                subject_id: subjectId
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                resDiv.style.backgroundColor = "rgba(16, 185, 129, 0.2)";
+                resDiv.style.color = "#34d399";
+                resDiv.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${data.message}`;
+                setTimeout(() => { location.reload(); }, 1800);
+            } else {
+                resDiv.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+                resDiv.style.color = "#f87171";
+                resDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${data.message}`;
+                setTimeout(() => { isProcessing = false; }, 3000);
+            }
+        })
+        .catch(err => {
+            resDiv.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+            resDiv.style.color = "#f87171";
+            resDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Network error scanning QR.`;
+            setTimeout(() => { isProcessing = false; }, 3000);
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", initScanner);
+</script>
+{% endblock %}

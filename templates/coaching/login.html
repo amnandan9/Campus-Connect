@@ -1,0 +1,355 @@
+{% extends 'coaching/base.html' %}
+{% load static %}
+
+{% block title %}Campus-Connect - Sign In{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 85vh;">
+    <div class="auth-card" style="text-align: center;">
+        <img src="{% static 'coaching/logo.png' %}" alt="Campus-Connect Logo" style="height: 220px; width: 220px; object-fit: contain; margin: 0 auto 24px; display: block; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));">
+        <h1 class="auth-title" style="font-size: 2.2rem; margin-bottom: 8px; color: #ffffff !important; text-shadow: 0 0 20px rgba(255, 255, 255, 0.4), 0 2px 4px rgba(0, 0, 0, 0.5); font-weight: 800; letter-spacing: -0.5px;">Campus-Connect</h1>
+        <p class="auth-subtitle" style="margin-bottom: 32px; color: var(--text-secondary);">Sign in to manage your campus portal</p>
+
+        
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" name="username" id="username" class="form-control" placeholder="Enter username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 30px;">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" name="password" id="password" class="form-control" placeholder="Enter password" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn-premium" style="width: 100%;">
+                <i class="fa-solid fa-right-to-bracket" style="margin-right: 8px;"></i> Access System
+            </button>
+        </form>
+
+        <div style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+            <button type="button" onclick="openPublicScanner()" class="btn-premium btn-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <i class="fa-solid fa-qrcode"></i> Student Info Check (Scan QR)
+            </button>
+        </div>
+    </div>
+
+    <!-- Login Page Creative Footer -->
+    <footer style="margin-top: 28px; text-align: center; font-size: 0.82rem; color: rgba(255, 255, 255, 0.8); background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.12); padding: 10px 22px; border-radius: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.35);">
+        <span>© All Rights Reserved to <strong style="color: #ffffff; font-weight: 700;">Nandan</strong></span>
+        <span style="color: rgba(255,255,255,0.3);">|</span>
+        <a href="tel:8310958499" style="color: var(--accent-emerald); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+            <i class="fa-solid fa-phone" style="font-size: 0.75rem;"></i> 8310958499
+        </a>
+    </footer>
+</div>
+
+<!-- Public Info Scanner Modal -->
+<div class="modal-overlay" id="publicScannerModal" style="display: none; z-index: 2000; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85);">
+    <div class="modal-premium" style="max-width: 440px; width: 90%; text-align: center; border: 2px solid var(--accent-indigo); padding: 24px; position: relative;">
+        <button class="modal-close" onclick="closePublicScanner()" style="background: none; border: none; color: #fff; font-size: 1.5rem; position: absolute; right: 15px; top: 10px; cursor: pointer;">&times;</button>
+        
+        <h3 style="color: var(--accent-indigo); margin-bottom: 12px;">Student Info Check</h3>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 20px;">Scan your QR card code to view attendance & next due date</p>
+        
+        <!-- QR Viewport -->
+        <div id="publicQrReader" style="width: 100%; max-width: 300px; aspect-ratio: 1; margin: 0 auto 16px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: var(--shadow-premium);"></div>
+        
+        <div id="publicScannerStatus" style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Initializing camera...
+        </div>
+    </div>
+</div>
+
+<!-- Public Info Detail Modal -->
+<div class="modal-overlay" id="publicDetailModal" style="display: none; z-index: 2001; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92);">
+    <div class="modal-premium" style="max-width: 420px; width: 90%; text-align: center; border: 2px solid var(--accent-indigo); padding: 24px; position: relative;">
+        <button class="modal-close" onclick="closePublicDetail()" style="background: none; border: none; color: #fff; font-size: 1.5rem; position: absolute; right: 15px; top: 10px; cursor: pointer;">&times;</button>
+        
+        <h3 style="color: var(--accent-emerald); font-size: 1.35rem; margin-bottom: 14px;">
+            <i class="fa-solid fa-circle-info"></i> Student Info Card
+        </h3>
+        
+        <!-- Photo Container -->
+        <div style="width: 90px; height: 90px; border-radius: 50%; overflow: hidden; border: 3px solid var(--accent-indigo); margin: 0 auto 14px; background-color: var(--bg-secondary); display: flex; align-items: center; justify-content: center;">
+            <img id="pubStudentPhoto" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+            <i class="fa-solid fa-user" id="pubPhotoPlaceholder" style="font-size: 2.2rem; color: var(--text-secondary);"></i>
+        </div>
+
+        <!-- Fee Reminder Notification Box -->
+        <div id="pubFeeReminderContainer" style="display: none; margin-bottom: 14px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 10px; text-align: left; font-size: 0.85rem; color: #f87171; font-weight: 500;">
+            <span id="pubFeeReminderText">--</span>
+        </div>
+        
+        <div style="font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px; text-align: left; background-color: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Name:</span>
+                <strong style="color: var(--text-primary);" id="pubStudentName">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Class/Std:</span>
+                <strong style="color: var(--text-primary);" id="pubStudentClass">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Batch:</span>
+                <strong style="color: var(--text-primary);" id="pubStudentBatch">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">School:</span>
+                <strong style="color: var(--text-primary);" id="pubStudentSchool">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Next Due Date:</span>
+                <strong style="color: var(--text-primary);" id="pubNextDue">--/--/----</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Scanned IP:</span>
+                <strong style="color: var(--accent-indigo); font-size: 0.82rem;" id="pubScannedIp">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-top: 4px;">
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Fee Status:</span>
+                <span id="pubFeeStatusBadge" class="badge">Paid</span>
+            </div>
+        </div>
+
+        <!-- Teacher Tip / Assignment Note Read-Aloud Box -->
+        <div id="pubDailyNoteContainer" style="display: none; margin-bottom: 16px; padding: 14px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 0.85rem; font-weight: bold; color: var(--accent-indigo);">
+                    <i class="fa-solid fa-bullhorn" style="margin-right: 6px;"></i> Assigned HW / Announcement
+                </span>
+                <button type="button" onclick="speakPublicNote()" id="pubSpeechBtn" class="btn-premium" style="padding: 4px 10px; font-size: 0.75rem; background: var(--accent-indigo);">
+                    <i class="fa-solid fa-volume-high" style="margin-right: 4px;"></i> Read Aloud
+                </button>
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-primary); font-weight: 500;" id="pubDailyNote">--</div>
+        </div>
+        
+        <button class="btn-premium" onclick="closePublicDetail()" style="width: 100%;">
+            Close
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'coaching/html5-qrcode.min.js' %}"></script>
+<script>
+    let publicQrCode = null;
+    let isPubProcessing = false;
+    let pubNoteText = "";
+
+    function speakPublicNote() {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+
+        if (!pubNoteText || pubNoteText.trim() === '') return;
+        const utterance = new SpeechSynthesisUtterance(pubNoteText);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        
+        const btn = document.getElementById('pubSpeechBtn');
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-wave-square" style="margin-right: 4px;"></i> Reading...';
+        }
+        
+        utterance.onend = function() {
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-volume-high" style="margin-right: 4px;"></i> Read Aloud';
+            }
+        };
+
+        utterance.onerror = function() {
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-volume-high" style="margin-right: 4px;"></i> Read Aloud';
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function stopPublicSpeech() {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+    }
+    
+    function playPublicBeep() {
+        try {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = context.createOscillator();
+            const gainNode = context.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(context.destination);
+            oscillator.type = "sine";
+            oscillator.frequency.value = 900;
+            gainNode.gain.setValueAtTime(0, context.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.3, context.currentTime + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.15);
+            oscillator.start(context.currentTime);
+            oscillator.stop(context.currentTime + 0.15);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+    
+    function openPublicScanner() {
+        document.getElementById("publicScannerModal").style.display = "flex";
+        isPubProcessing = false;
+        
+        if (typeof Html5Qrcode === 'undefined') {
+            document.getElementById("publicScannerStatus").innerHTML = "<span style='color: var(--accent-rose);'>Scanner library not loaded.</span>";
+            return;
+        }
+        
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length > 0) {
+                publicQrCode = new Html5Qrcode("publicQrReader");
+                publicQrCode.start(
+                    { facingMode: "user" },
+                    { fps: 15, qrbox: (width, height) => { return { width: Math.min(width, height) * 0.8, height: Math.min(width, height) * 0.8 }; } },
+                    onPublicQrSuccess,
+                    onPublicQrError
+                )
+                .then(() => {
+                    document.getElementById("publicScannerStatus").innerText = "Align your student QR card to check info.";
+                })
+                .catch(err => {
+                    document.getElementById("publicScannerStatus").innerHTML = "<span style='color: var(--accent-rose);'>Camera permission blocked or unavailable.</span>";
+                });
+            } else {
+                document.getElementById("publicScannerStatus").innerHTML = "<span style='color: var(--accent-rose);'>No camera hardware detected.</span>";
+            }
+        }).catch(err => {
+            document.getElementById("publicScannerStatus").innerHTML = "<span style='color: var(--accent-rose);'>Camera access error.</span>";
+        });
+    }
+    
+    function closePublicScanner() {
+        if (publicQrCode) {
+            publicQrCode.stop().then(() => {
+                publicQrCode = null;
+            }).catch(e => console.error(e));
+        }
+        document.getElementById("publicScannerModal").style.display = "none";
+    }
+    
+    function onPublicQrSuccess(decodedText, decodedResult) {
+        if (isPubProcessing) return;
+        isPubProcessing = true;
+        
+        playPublicBeep();
+        closePublicScanner();
+        
+        fetch("{% url 'public_student_info' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ qr_token: decodedText })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById("pubStudentName").innerText = data.student_name || "--";
+                document.getElementById("pubStudentClass").innerText = data.class_std || "N/A";
+                document.getElementById("pubStudentBatch").innerText = data.batch || "--";
+                document.getElementById("pubStudentSchool").innerText = data.school || "--";
+                document.getElementById("pubNextDue").innerText = data.next_due || "--/--/----";
+                document.getElementById("pubScannedIp").innerText = data.scanned_ip || "Logged";
+                
+                const badgeEl = document.getElementById("pubFeeStatusBadge");
+                const feeStatus = data.fee_status || "Not Paid";
+                badgeEl.innerText = feeStatus;
+                badgeEl.className = feeStatus === "Paid" ? "badge badge-success" : "badge badge-danger";
+                
+                const photoImg = document.getElementById("pubStudentPhoto");
+                const placeholder = document.getElementById("pubPhotoPlaceholder");
+                if (data.face_data && data.face_data.length > 20) {
+                    photoImg.src = data.face_data;
+                    photoImg.style.display = "block";
+                    placeholder.style.display = "none";
+                } else {
+                    photoImg.style.display = "none";
+                    placeholder.style.display = "block";
+                }
+
+                // Fee Reminder Banner
+                const reminderContainer = document.getElementById("pubFeeReminderContainer");
+                if (data.fee_reminder_msg) {
+                    document.getElementById("pubFeeReminderText").innerText = data.fee_reminder_msg;
+                    reminderContainer.style.display = "block";
+                } else {
+                    reminderContainer.style.display = "none";
+                }
+
+                // Voice Read-Aloud & Homework Note
+                pubNoteText = data.daily_note || "";
+                const noteContainer = document.getElementById("pubDailyNoteContainer");
+                if (pubNoteText && pubNoteText.trim() !== "") {
+                    document.getElementById("pubDailyNote").innerText = pubNoteText;
+                    noteContainer.style.display = "block";
+                    speakPublicNote();
+                } else {
+                    noteContainer.style.display = "none";
+                    stopPublicSpeech();
+                }
+                
+                // Web Browser Push Notification for Assigned HW & Scan Alert
+                try {
+                    const notifyUser = () => {
+                        let notifTitle = `St. Anthony Portal - ${data.student_name}`;
+                        let notifBody = `Checked student profile for ${data.student_name}`;
+                        
+                        if (data.daily_note && data.daily_note.trim() !== "") {
+                            notifTitle = `📚 HW Alert: ${data.student_name}`;
+                            notifBody = `Assigned HW: ${data.daily_note}`;
+                        } else if (data.fee_reminder_msg) {
+                            notifTitle = `🔔 Fee Alert: ${data.student_name}`;
+                            notifBody = data.fee_reminder_msg;
+                        }
+                        
+                        new Notification(notifTitle, {
+                            body: notifBody,
+                            icon: '/static/coaching/logo.png',
+                            badge: '/static/coaching/logo.png',
+                            tag: 'student-scan-' + (data.username || 'user')
+                        });
+                    };
+
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        notifyUser();
+                    } else if ('Notification' in window && Notification.permission !== 'denied') {
+                        Notification.requestPermission().then(perm => {
+                            if (perm === 'granted') notifyUser();
+                        });
+                    }
+                } catch (e) {
+                    console.error("Web Notification error:", e);
+                }
+                
+                document.getElementById("publicDetailModal").style.display = "flex";
+            } else {
+                alert("Error: " + data.message);
+                isPubProcessing = false;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Network connection error.");
+            isPubProcessing = false;
+        });
+    }
+    
+    function onPublicQrError(err) {}
+    
+    function closePublicDetail() {
+        stopPublicSpeech();
+        document.getElementById("publicDetailModal").style.display = "none";
+        isPubProcessing = false;
+    }
+</script>
+{% endblock %}

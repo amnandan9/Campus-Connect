@@ -1,0 +1,443 @@
+{% extends 'coaching/base.html' %}
+
+{% block title %}Attendance QR Terminal{% endblock %}
+{% block active_att_scan %}active{% endblock %}
+{% block active_att_scan_admin %}active{% endblock %}
+{% block active_student_att_scan %}active{% endblock %}
+{% block page_title %}Attendance Scanning Terminal{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Styling html5-qrcode to match premium dark style */
+    #qrReader {
+        border: none !important;
+        border-radius: 20px;
+        overflow: hidden;
+        width: 100% !important;
+        max-width: 440px;
+        aspect-ratio: 4/3;
+        margin: 0 auto;
+        background-color: #000;
+        box-shadow: var(--shadow-premium);
+    }
+    #qrReader__dashboard, #qrReader__status_span {
+        display: none !important;
+    }
+    #qrReader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        transform: scaleX(-1); /* mirror effect */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card-premium" style="max-width: 600px; margin: 0 auto; text-align: center;">
+    <h2 style="margin-bottom: 8px;">Mark Attendance</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">Scan student QR Code card or enter card token to check-in</p>
+    
+    <!-- Flip Camera Button -->
+    <div style="margin-bottom: 20px; text-align: center;">
+        <button onclick="toggleCameraFacing()" class="btn-premium btn-secondary" id="flipCameraBtn" style="padding: 8px 16px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-camera-rotate"></i> Flip Camera
+        </button>
+    </div>
+
+    <div class="scanner-container">
+        <!-- QR Scanner viewport -->
+        <div id="qrReader" style="width: 100%; display: block;"></div>
+        
+        <div class="scanner-status" id="scanStatus" style="width: 100%; margin-top: 16px;">
+            Initializing scanner terminal...
+        </div>
+        
+        <!-- Manual Check-in Fallback Form -->
+        <div id="manualCheckinContainer" style="display: none; margin-top: 24px; padding: 20px; border: 1px solid var(--border-color); border-radius: 16px; background-color: rgba(255, 255, 255, 0.01); width: 100%; text-align: left;">
+            <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--accent-indigo);">Manual Check-In Entry</h4>
+            <div style="display: flex; gap: 12px;">
+                <input type="text" id="manualTokenInput" class="form-control" placeholder="Enter student card token / username..." style="padding: 10px; font-size: 0.9rem; flex: 1;">
+                <button onclick="submitManualCheckin()" class="btn-premium" style="padding: 10px 16px; font-size: 0.9rem;">Submit</button>
+            </div>
+        </div>
+        
+        <button onclick="toggleManualCheckin()" class="btn-premium btn-secondary" style="margin-top: 16px; width: 100%; padding: 10px;">
+            <i class="fa-solid fa-keyboard" style="margin-right: 6px;"></i> Type Card Token (No Camera)
+        </button>
+    </div>
+</div>
+
+<!-- Attendance Success Profile Modal -->
+<div class="modal-overlay" id="attendanceSuccessModal" style="z-index: 1500; display: none;">
+    <div class="modal-premium" style="max-width: 420px; text-align: center; border: 2px solid var(--accent-indigo); padding: 32px 24px;">
+        <button class="modal-close" onclick="closeAttendanceSuccessModal()">&times;</button>
+        
+        <h2 style="color: var(--accent-emerald); font-size: 1.4rem; margin-bottom: 16px;" id="popupHeader">
+            <i class="fa-solid fa-circle-check"></i> Present Marked!
+        </h2>
+
+        <!-- Student Photo Avatar Header -->
+        <div id="popupAvatarContainer" style="display: flex; justify-content: center; margin-bottom: 14px;">
+            <img id="popupStudentAvatar" style="width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-indigo); display: none;">
+        </div>
+
+        <!-- Fee Reminder Notification Box -->
+        <div id="popupFeeReminderContainer" style="display: none; margin-bottom: 14px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 10px; text-align: left; font-size: 0.85rem; color: #f87171; font-weight: 500;">
+            <span id="popupFeeReminderText">--</span>
+        </div>
+        
+        <div style="font-size: 1.05rem; line-height: 1.6; margin-bottom: 24px; text-align: left; background-color: rgba(255, 255, 255, 0.02); padding: 18px; border-radius: 12px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Name:</span>
+                <strong style="color: var(--text-primary);" id="popupStudentName">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Batch:</span>
+                <strong style="color: var(--text-primary);" id="popupStudentBatch">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">School:</span>
+                <strong style="color: var(--text-primary);" id="popupStudentSchool">--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Check-in Time:</span>
+                <strong style="color: var(--text-primary);" id="popupCheckinTime">--:--</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Timing Status:</span>
+                <strong style="color: var(--accent-indigo);" id="popupTimingSummary">On time</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Next Due Date:</span>
+                <strong style="color: var(--text-primary);" id="popupNextDue">--/--/----</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Batch Attendance Today:</span>
+                <strong style="color: var(--accent-indigo);" id="popupBatchAttendance">0%</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-top: 4px;">
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Fee Status:</span>
+                <span id="popupFeeStatusBadge" class="badge">Paid</span>
+            </div>
+            
+            <!-- Teacher Tip / Assignment Note Read-Aloud Box -->
+            <div id="popupDailyNoteContainer" style="display: none; margin-top: 16px; padding: 14px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; text-align: left;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.85rem; font-weight: bold; color: var(--accent-indigo);">
+                        <i class="fa-solid fa-bullhorn" style="margin-right: 6px;"></i> Teacher's Note / Assignment
+                    </span>
+                    <button type="button" onclick="speakCurrentNote()" id="speechBtn" class="btn-premium" style="padding: 4px 10px; font-size: 0.75rem; background: var(--accent-indigo);">
+                        <i class="fa-solid fa-volume-high" style="margin-right: 4px;"></i> Read Aloud
+                    </button>
+                </div>
+                <div style="font-size: 0.9rem; color: var(--text-primary); font-weight: 500;" id="popupDailyNote">--</div>
+            </div>
+        </div>
+        
+        <button class="btn-premium" onclick="closeAttendanceSuccessModal()" style="width: 100%;">
+            OK
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="{% static 'coaching/html5-qrcode.min.js' %}"></script>
+<script>
+    let html5QrCode = null;
+    let isProcessing = false;
+    let currentFacingMode = "user";
+    let modalTimeout = null;
+    let currentNoteText = "";
+
+    const scanStatus = document.getElementById('scanStatus');
+    const qrReaderDiv = document.getElementById('qrReader');
+
+    function speakCurrentNote() {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+
+        if (!currentNoteText || currentNoteText.trim() === '') return;
+        const utterance = new SpeechSynthesisUtterance(currentNoteText);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        
+        const btn = document.getElementById('speechBtn');
+        if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-wave-square" style="margin-right: 4px;"></i> Reading...';
+        }
+        
+        utterance.onend = function() {
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-volume-high" style="margin-right: 4px;"></i> Read Aloud';
+            }
+        };
+
+        utterance.onerror = function() {
+            if (btn) {
+                btn.innerHTML = '<i class="fa-solid fa-volume-high" style="margin-right: 4px;"></i> Read Aloud';
+            }
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeech() {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+    }
+
+    function playBeep() {
+        try {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = context.createOscillator();
+            const gainNode = context.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(context.destination);
+            oscillator.type = "sine";
+            oscillator.frequency.value = 900;
+            gainNode.gain.setValueAtTime(0, context.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.3, context.currentTime + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.15);
+            oscillator.start(context.currentTime);
+            oscillator.stop(context.currentTime + 0.15);
+        } catch (e) {
+            console.error("Audio failed:", e);
+        }
+    }
+
+    function toggleCameraFacing() {
+        currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+        scanStatus.innerText = "Switching camera view...";
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode = null;
+                initQRScan();
+            }).catch(err => {
+                console.error(err);
+                initQRScan();
+            });
+        } else {
+            initQRScan();
+        }
+    }
+
+    function initQRScan() {
+        if (typeof Html5Qrcode === 'undefined') {
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Scanner library not loaded. Please use manual entry.</span>";
+            document.getElementById('manualCheckinContainer').style.display = 'block';
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Camera access blocked on insecure connections. Please use manual entry.</span>";
+            document.getElementById('manualCheckinContainer').style.display = 'block';
+            return;
+        }
+        scanStatus.innerText = "Requesting webcam for QR scan...";
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length > 0) {
+                html5QrCode = new Html5Qrcode("qrReader");
+                html5QrCode.start(
+                    { facingMode: currentFacingMode },
+                    { fps: 15, qrbox: (width, height) => { return { width: Math.min(width, height) * 0.8, height: Math.min(width, height) * 0.8 }; } },
+                    onQrSuccess,
+                    onQrError
+                )
+                .then(() => {
+                    scanStatus.innerText = "Scanning for QR Code cards...";
+                })
+                .catch(err => {
+                    scanStatus.innerHTML = `<span style='color: var(--accent-rose); font-weight: 600;'>Webcam access blocked / denied.</span><br>Use manual token entry below to check in.`;
+                    document.getElementById('manualCheckinContainer').style.display = 'block';
+                });
+            } else {
+                scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>No camera hardware found.</span>";
+                document.getElementById('manualCheckinContainer').style.display = 'block';
+            }
+        }).catch(err => {
+            scanStatus.innerHTML = `<span style='color: var(--accent-rose); font-weight: 600;'>Webcam permission error.</span><br>Use manual token entry below.`;
+            document.getElementById('manualCheckinContainer').style.display = 'block';
+        });
+    }
+
+    function onQrSuccess(decodedText, decodedResult) {
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        playBeep();
+        scanStatus.innerText = "Marking attendance...";
+        
+        fetch("{% url 'mark_attendance_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                qr_token: decodedText,
+                marked_by: "{{ user.role }}" === "student" ? "self_qr" : "teacher"
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success || data.already_marked || data.is_locked) {
+                openAttendanceSuccessModal(data);
+            } else {
+                scanStatus.innerHTML = `<span style='color: var(--accent-rose);'>${data.message}</span>`;
+                setTimeout(() => {
+                    isProcessing = false;
+                    scanStatus.innerText = "Scanning for QR Code cards...";
+                }, 2000);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Attendance marking failed.</span>";
+            setTimeout(() => {
+                isProcessing = false;
+                scanStatus.innerText = "Scanning for QR Code cards...";
+            }, 2000);
+        });
+    }
+
+    function onQrError(err) {}
+
+    const attendanceSuccessModal = document.getElementById('attendanceSuccessModal');
+
+    function openAttendanceSuccessModal(data) {
+        if (modalTimeout) {
+            clearTimeout(modalTimeout);
+            modalTimeout = null;
+        }
+
+        const headerEl = document.getElementById('popupHeader');
+        if (data.is_locked) {
+            headerEl.innerHTML = `<i class="fa-solid fa-lock"></i> Batch Locked for Today`;
+            headerEl.style.color = 'var(--accent-rose)';
+        } else if (data.success || data.already_marked) {
+            const isLate = data.status === 'late';
+            const statusLabel = isLate ? "Late Marked!" : "Present Marked!";
+            const statusColor = isLate ? "var(--accent-amber)" : "var(--accent-emerald)";
+            const statusIcon = isLate ? "fa-clock" : "fa-circle-check";
+            
+            if (data.already_marked) {
+                headerEl.innerHTML = `<i class="fa-solid fa-circle-info"></i> Already Marked (${isLate ? "Late" : "Present"})`;
+                headerEl.style.color = 'var(--accent-amber)';
+            } else {
+                headerEl.innerHTML = `<i class="fa-solid ${statusIcon}"></i> ${statusLabel}`;
+                headerEl.style.color = statusColor;
+            }
+        } else {
+            headerEl.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Scan Failed';
+            headerEl.style.color = 'var(--accent-rose)';
+        }
+
+        document.getElementById('popupStudentName').innerText = data.student_name || "Unknown Student";
+        document.getElementById('popupStudentBatch').innerText = data.batch || "None";
+        document.getElementById('popupStudentSchool').innerText = data.school || "None";
+        document.getElementById('popupCheckinTime').innerText = data.time || "--:--";
+        document.getElementById('popupTimingSummary').innerText = data.timing_summary || (data.minutes_late ? `${data.minutes_late} mins late` : "On time");
+        document.getElementById('popupNextDue').innerText = data.next_due || "--/--/----";
+        document.getElementById('popupBatchAttendance').innerText = (data.batch_attendance_percentage ?? 0) + '%';
+        
+        const badgeEl = document.getElementById('popupFeeStatusBadge');
+        const feeStatus = data.fee_status || "Not Paid";
+        badgeEl.innerText = feeStatus;
+        badgeEl.className = feeStatus === "Paid" ? "badge badge-success" : "badge badge-danger";
+
+        // Student Avatar Photo
+        const avatarImg = document.getElementById('popupStudentAvatar');
+        if (data.face_data && data.face_data.length > 20) {
+            avatarImg.src = data.face_data;
+            avatarImg.style.display = 'block';
+        } else {
+            avatarImg.style.display = 'none';
+        }
+
+        // Fee Reminder Notification Box
+        const reminderContainer = document.getElementById('popupFeeReminderContainer');
+        if (data.fee_reminder_msg) {
+            document.getElementById('popupFeeReminderText').innerText = data.fee_reminder_msg;
+            reminderContainer.style.display = 'block';
+        } else {
+            reminderContainer.style.display = 'none';
+        }
+
+        // Read aloud teacher note if present
+        currentNoteText = data.daily_note || "";
+        const noteContainer = document.getElementById('popupDailyNoteContainer');
+        const noteEl = document.getElementById('popupDailyNote');
+
+        if (currentNoteText && currentNoteText.trim() !== '') {
+            noteEl.innerText = currentNoteText;
+            noteContainer.style.display = 'block';
+            speakCurrentNote();
+        } else {
+            noteContainer.style.display = 'none';
+            stopSpeech();
+        }
+
+        attendanceSuccessModal.style.display = 'flex';
+        modalTimeout = setTimeout(closeAttendanceSuccessModal, 15000);
+    }
+
+    function closeAttendanceSuccessModal() {
+        stopSpeech();
+        if (modalTimeout) {
+            clearTimeout(modalTimeout);
+            modalTimeout = null;
+        }
+        attendanceSuccessModal.style.display = 'none';
+        isProcessing = false;
+        scanStatus.innerText = "Scanning for QR Code cards...";
+    }
+
+    function toggleManualCheckin() {
+        const container = document.getElementById('manualCheckinContainer');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    function submitManualCheckin() {
+        const tokenInput = document.getElementById('manualTokenInput');
+        const token = tokenInput.value.trim();
+        if (!token) {
+            alert("Please enter a valid card token.");
+            return;
+        }
+        
+        scanStatus.innerText = "Processing manual check-in...";
+        
+        fetch("{% url 'mark_attendance_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                qr_token: token,
+                marked_by: "{{ user.role }}" === "student" ? "self_qr" : "teacher"
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            playBeep();
+            tokenInput.value = '';
+            openAttendanceSuccessModal(data);
+        })
+        .catch(err => {
+            console.error(err);
+            scanStatus.innerHTML = "<span style='color: var(--accent-rose);'>Server communication error.</span>";
+        });
+    }
+
+    window.onload = function() {
+        initQRScan();
+    }
+</script>
+{% endblock %}

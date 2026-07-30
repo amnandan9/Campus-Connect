@@ -1,0 +1,250 @@
+{% extends 'coaching/base.html' %}
+
+{% block title %}Notebook & Correction Verification QR | Campus-Connect{% endblock %}
+{% block active_corr_scan %}active{% endblock %}
+{% block active_corr_scan_admin %}active{% endblock %}
+{% block page_title %}Notebook Correction & Marks Verification{% endblock %}
+
+{% block extra_head %}
+<style>
+    #qrReader {
+        border: none !important;
+        border-radius: 20px;
+        overflow: hidden;
+        width: 100% !important;
+        max-width: 440px;
+        aspect-ratio: 4/3;
+        margin: 0 auto;
+        background-color: #000;
+        box-shadow: var(--shadow-premium);
+    }
+    #qrReader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card-premium" style="max-width: 750px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin-bottom: 8px;"><i class="fa-solid fa-book-bookmark" style="color: var(--accent-indigo);"></i> Notebook & Marks Verification</h2>
+        <p style="color: var(--text-secondary);">Subject Teachers: Scan student QR code to verify submitted notebooks, award marks, and issue digital sign-offs.</p>
+    </div>
+
+    <!-- Controls Form -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 16px; border: 1px solid var(--border-color);">
+        <div>
+            <label class="form-label" for="subjectSelect">Subject</label>
+            <select id="subjectSelect" class="form-control">
+                <option value="">-- Select Subject --</option>
+                {% for sub in subjects %}
+                    <option value="{{ sub.id }}">{{ sub.name }} {% if sub.code %}({{ sub.code }}){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label" for="workTypeSelect">Work Type</label>
+            <select id="workTypeSelect" class="form-control">
+                <option value="notebook">Notebook Correction</option>
+                <option value="assignment">Assignment / HW</option>
+                <option value="project">Project Work</option>
+                <option value="test">Class Test / Exam</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="form-label" for="titleInput">Topic / Title</label>
+            <input type="text" id="titleInput" class="form-control" placeholder="e.g. Chapter 3 Homework" value="Routine Notebook Check">
+        </div>
+
+        <div>
+            <label class="form-label" for="marksInput">Marks Obtained (Optional)</label>
+            <input type="number" id="marksInput" class="form-control" placeholder="e.g. 18" step="0.5">
+        </div>
+
+        <div>
+            <label class="form-label" for="maxMarksInput">Max Marks</label>
+            <input type="number" id="maxMarksInput" class="form-control" placeholder="100" value="100">
+        </div>
+
+        <div>
+            <label class="form-label" for="statusSelect">Verification Status</label>
+            <select id="statusSelect" class="form-control">
+                <option value="verified" selected>Verified & Returned to Student</option>
+                <option value="submitted">Submitted for Correction</option>
+                <option value="resubmit">Needs Resubmission</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Scanner Module -->
+    <div style="text-align: center; margin-bottom: 24px;">
+        <button onclick="toggleCameraFacing()" class="btn-premium btn-secondary" style="padding: 8px 16px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;">
+            <i class="fa-solid fa-camera-rotate"></i> Flip Camera
+        </button>
+        <div id="qrReader"></div>
+    </div>
+
+    <!-- Result Banner -->
+    <div id="scanResult" style="display: none; padding: 16px; border-radius: 12px; margin-bottom: 24px; text-align: center; font-weight: 600;"></div>
+
+    <!-- Manual Student Selector -->
+    <div style="background: rgba(0,0,0,0.15); padding: 20px; border-radius: 16px; border: 1px solid var(--border-color);">
+        <h4 style="margin-bottom: 12px;"><i class="fa-solid fa-keyboard"></i> Manual QR Verification</h4>
+        <div style="display: flex; gap: 12px;">
+            <select id="manualStudentSelect" class="form-control" style="flex: 1;">
+                <option value="">-- Select Student Manually --</option>
+                {% for st in students %}
+                    <option value="{{ st.qr_code_token }}">{{ st.user.get_full_name }} ({{ st.batch.name|default:"No Batch" }})</option>
+                {% endfor %}
+            </select>
+            <button onclick="verifyManualStudent()" class="btn-premium btn-primary" style="white-space: nowrap;">
+                <i class="fa-solid fa-check-double"></i> Verify Selection
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Verifications Table -->
+<div class="card-premium" style="max-width: 750px; margin: 30px auto 0;">
+    <h3 style="margin-bottom: 16px;"><i class="fa-solid fa-history"></i> Recent Verification Logs</h3>
+    <div class="table-responsive">
+        <table class="table-premium">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Student</th>
+                    <th>Subject</th>
+                    <th>Type & Title</th>
+                    <th>Marks</th>
+                    <th>Status</th>
+                    <th>Teacher</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in recent_corrections %}
+                <tr>
+                    <td>{{ item.verified_at|date:"d M H:i" }}</td>
+                    <td><strong>{{ item.student.user.get_full_name }}</strong></td>
+                    <td>{{ item.subject.name|default:"General" }}</td>
+                    <td>{{ item.get_work_type_display }}: {{ item.title }}</td>
+                    <td>{% if item.marks_obtained != None %}{{ item.marks_obtained }}/{{ item.max_marks }}{% else %}-{% endif %}</td>
+                    <td>
+                        <span class="badge {% if item.status == 'verified' %}badge-success{% elif item.status == 'submitted' %}badge-warning{% else %}badge-danger{% endif %}">
+                            {{ item.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ item.teacher.get_full_name|default:item.teacher.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">No recent notebook corrections logged.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- html5-qrcode script -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+    let html5QrCode = null;
+    let currentFacingMode = "environment";
+    let isProcessing = false;
+
+    function initScanner() {
+        html5QrCode = new Html5Qrcode("qrReader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        
+        html5QrCode.start(
+            { facingMode: currentFacingMode },
+            config,
+            onScanSuccess
+        ).catch(err => {
+            console.error("Camera error:", err);
+        });
+    }
+
+    function toggleCameraFacing() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+                initScanner();
+            });
+        }
+    }
+
+    function onScanSuccess(decodedText) {
+        if (isProcessing) return;
+        isProcessing = true;
+        sendVerification(decodedText);
+    }
+
+    function verifyManualStudent() {
+        const token = document.getElementById("manualStudentSelect").value;
+        if (!token) {
+            alert("Please select a student first!");
+            return;
+        }
+        sendVerification(token);
+    }
+
+    function sendVerification(token) {
+        const subjectId = document.getElementById("subjectSelect").value;
+        const workType = document.getElementById("workTypeSelect").value;
+        const title = document.getElementById("titleInput").value || "Routine Check";
+        const marks = document.getElementById("marksInput").value;
+        const maxMarks = document.getElementById("maxMarksInput").value || 100;
+        const status = document.getElementById("statusSelect").value;
+
+        const resDiv = document.getElementById("scanResult");
+        resDiv.style.display = "block";
+        resDiv.style.backgroundColor = "rgba(99, 102, 241, 0.2)";
+        resDiv.style.color = "#818cf8";
+        resDiv.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Verifying student QR...`;
+
+        fetch("{% url 'verify_correction_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({
+                qr_token: token,
+                subject_id: subjectId,
+                work_type: workType,
+                title: title,
+                marks_obtained: marks,
+                max_marks: maxMarks,
+                status: status
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                resDiv.style.backgroundColor = "rgba(16, 185, 129, 0.2)";
+                resDiv.style.color = "#34d399";
+                resDiv.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${data.message}`;
+                setTimeout(() => { location.reload(); }, 1800);
+            } else {
+                resDiv.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+                resDiv.style.color = "#f87171";
+                resDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${data.message}`;
+                setTimeout(() => { isProcessing = false; }, 3000);
+            }
+        })
+        .catch(err => {
+            resDiv.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+            resDiv.style.color = "#f87171";
+            resDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Network error processing QR.`;
+            setTimeout(() => { isProcessing = false; }, 3000);
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", initScanner);
+</script>
+{% endblock %}
