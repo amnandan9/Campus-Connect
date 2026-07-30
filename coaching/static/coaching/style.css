@@ -91,9 +91,11 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 2rem;
     margin-bottom: 8px;
     text-align: center;
-    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: #ffffff !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    text-shadow: none !important;
 }
 
 .auth-subtitle {
@@ -130,11 +132,13 @@ h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
     letter-spacing: -0.03em;
     text-decoration: none;
-    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: var(--text-primary);
+    color: #ffffff !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    text-shadow: none !important;
 }
+
 
 .sidebar-menu {
     list-style: none;
