@@ -51,5 +51,7 @@ urlpatterns = [
     path('api/public-student-info/', views.public_student_info, name='public_student_info'),
     path('api/verify-correction/', views.verify_correction_api, name='verify_correction_api'),
     path('api/record-movement/', views.record_movement_api, name='record_movement_api'),
+    path('api/teacher-self-attendance/', views.teacher_self_attendance_api, name='teacher_self_attendance_api'),
 ]
+
 

@@ -2,7 +2,8 @@ import datetime
 import uuid
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from coaching.models import User, Batch, StudentProfile, AttendanceRecord, FeePayment, ClassSchedule
+from coaching.models import User, Batch, StudentProfile, AttendanceRecord, FeePayment, ClassSchedule, Subject, PeriodSchedule
+
 
 class Command(BaseCommand):
     help = 'Seeds the database with coaching center initial data'
@@ -52,11 +53,11 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f'Created Teacher: {username} / {password}'))
             teachers.append(user)
 
-        # 3. Create Batches
+        # 3. Create Sections
         batches_data = [
-            ('Morning Science Batch', 'Science lectures for high school students', 'Mon-Wed-Fri 08:00 AM - 10:00 AM'),
-            ('Evening Maths Batch', 'Mathematics coaching for college level', 'Tue-Thu-Sat 05:00 PM - 07:00 PM'),
-            ('Weekend Programming Batch', 'Introduction to Python & Django', 'Sat-Sun 10:00 AM - 01:00 PM')
+            ('Section A (Science)', 'Science lectures for high school students', 'Mon-Wed-Fri 08:00 AM - 10:00 AM'),
+            ('Section B (Maths)', 'Mathematics coaching for college level', 'Tue-Thu-Sat 05:00 PM - 07:00 PM'),
+            ('Section C (AI & Tech)', 'Introduction to Python, Django & AI', 'Sat-Sun 10:00 AM - 01:00 PM')
         ]
         batches = []
         for name, desc, timing in batches_data:
@@ -65,7 +66,24 @@ class Command(BaseCommand):
                 defaults={'description': desc, 'timing': timing}
             )
             batches.append(batch)
-            self.stdout.write(f'Ensured Batch: {name}')
+            self.stdout.write(f'Ensured Section: {name}')
+
+        # 3b. Seed 5 Core Subjects
+        subjects_data = [
+            ('Maths', 'MATH101'),
+            ('Physics', 'PHY101'),
+            ('English', 'ENG101'),
+            ('Chemistry', 'CHEM101'),
+            ('AI', 'AI101'),
+        ]
+        for idx, (sub_name, sub_code) in enumerate(subjects_data):
+            t_assigned = teachers[idx % len(teachers)] if teachers else None
+            Subject.objects.get_or_create(
+                name=sub_name,
+                defaults={'code': sub_code, 'teacher': t_assigned}
+            )
+            self.stdout.write(f'Ensured Subject: {sub_name}')
+
 
         # 4. Create Students
         students_data = [

@@ -22,23 +22,21 @@ class User(AbstractUser):
         return self.role == 'student'
 
 class Batch(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, verbose_name="Section Name")
     description = models.TextField(blank=True)
     timing = models.CharField(max_length=100, help_text="e.g. Mon-Wed-Fri 7:15 PM - 8:15 PM")
-    start_time = models.TimeField(default='09:00:00', help_text="Batch start time (e.g. 19:15 for 7:15 PM)")
-    daily_note = models.TextField(blank=True, null=True, help_text="Daily teacher tip, assignment, or announcement for the batch")
+    start_time = models.TimeField(default='09:00:00', help_text="Section start time")
+    daily_note = models.TextField(blank=True, null=True, help_text="Daily teacher tip, assignment, or announcement for the section")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name_plural = "Batches"
+        verbose_name = "Section"
+        verbose_name_plural = "Sections"
 
     def get_effective_start_time(self):
         import re, datetime
-        # If start_time was explicitly set (not default 09:00:00), return start_time
         if self.start_time and str(self.start_time) != '09:00:00' and self.start_time != datetime.time(9, 0):
             return self.start_time
-        
-        # Smart parse from timing string: e.g. "Mon-Fri 7:15 PM - 8:15 PM" or "7:15 PM"
         if self.timing:
             match = re.search(r'(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?', self.timing)
             if match:
@@ -52,7 +50,6 @@ class Batch(models.Model):
                     elif ampm == 'AM' and hrs == 12:
                         hrs = 0
                 return datetime.time(hrs, mins)
-        
         return self.start_time or datetime.time(9, 0)
 
     def __str__(self):
@@ -65,17 +62,32 @@ class StudentProfile(models.Model):
     contact_number = models.CharField(max_length=15)
     parent_contact = models.CharField(max_length=15)
     joining_date = models.DateField(default=timezone.now)
-    batch = models.ForeignKey(Batch, on_delete=models.SET_NULL, null=True, related_name='students')
-    monthly_fee = models.DecimalField(max_digits=10, decimal_places=2)
-    next_due_date = models.DateField()
+    batch = models.ForeignKey(Batch, on_delete=models.SET_NULL, null=True, related_name='students', verbose_name="Section")
+    monthly_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Legacy monthly fee reference")
+    total_fee = models.DecimalField(max_digits=10, decimal_places=2, default=35000.00, verbose_name="Total Course Fee")
+    next_due_date = models.DateField(default=timezone.now)
     qr_code_token = models.CharField(max_length=100, unique=True, default=uuid.uuid4)
     face_data = models.TextField(blank=True, null=True, help_text="Deprecated photo data")
     individual_note = models.TextField(blank=True, null=True, help_text="Individual homework or custom task assigned to this student")
     last_scanned_ip = models.GenericIPAddressField(blank=True, null=True, help_text="IP address of device used to scan QR info")
     last_scanned_at = models.DateTimeField(blank=True, null=True, help_text="Last QR info scan timestamp")
 
+    @property
+    def total_paid(self):
+        result = self.payments.aggregate(total=models.Sum('amount_paid'))['total']
+        return float(result) if result else 0.00
+
+    @property
+    def remaining_balance(self):
+        return max(0.00, float(self.total_fee) - self.total_paid)
+
+    @property
+    def fee_status(self):
+        return "Cleared" if self.remaining_balance <= 0 else "Not Cleared"
+
     def __str__(self):
         return self.user.get_full_name() or self.user.username
+
 
 class AttendanceRecord(models.Model):
     MARKED_BY_CHOICES = (
@@ -204,4 +216,37 @@ class ClassroomMovementLog(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.movement_type} at {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+
+
+class TeacherAttendanceRecord(models.Model):
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='self_attendance_records')
+    date = models.DateField(default=timezone.now)
+    time_in = models.TimeField(auto_now_add=True)
+    time_out = models.TimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, default='present')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['teacher', 'date'], name='unique_teacher_daily_attendance')
+        ]
+        ordering = ['-date', '-time_in']
+
+    def __str__(self):
+        return f"Teacher {self.teacher.get_full_name()} - {self.date}"
+
+
+class PeriodSchedule(models.Model):
+    section = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='periods', verbose_name="Section")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='periods')
+    teacher = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_periods')
+    period_name = models.CharField(max_length=50, help_text="e.g. Period 1")
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        ordering = ['start_time']
+
+    def __str__(self):
+        return f"{self.section.name} - {self.period_name}: {self.subject.name}"
+
 

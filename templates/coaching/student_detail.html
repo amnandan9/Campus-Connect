@@ -31,9 +31,26 @@
                     <strong>{{ profile.joining_date|date:"M d, Y" }}</strong>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
-                    <span style="color: var(--text-secondary);">Monthly Fee:</span>
-                    <strong style="color: var(--accent-indigo);">₹{{ profile.monthly_fee }}</strong>
+                    <span style="color: var(--text-secondary);">Total Course Fee:</span>
+                    <strong style="color: var(--text-primary);">₹{{ profile.total_fee }}</strong>
                 </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-secondary);">Total Amount Paid:</span>
+                    <strong style="color: var(--accent-emerald);">₹{{ profile.total_paid }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-secondary);">Remaining Balance:</span>
+                    <strong style="color: {% if profile.remaining_balance > 0 %}var(--accent-rose){% else %}var(--accent-emerald){% endif %};">₹{{ profile.remaining_balance }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-secondary);">Fee Status:</span>
+                    {% if profile.fee_status == 'Cleared' %}
+                        <span class="badge badge-success">Cleared</span>
+                    {% else %}
+                        <span class="badge badge-danger">Not Cleared</span>
+                    {% endif %}
+                </div>
+
             </div>
 
             <!-- Dynamic QR Code Card -->

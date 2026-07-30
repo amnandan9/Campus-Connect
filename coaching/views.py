@@ -15,8 +15,13 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from coaching.models import User, Batch, StudentProfile, AttendanceRecord, FeePayment, ClassSchedule, DailyBatchAttendanceLock, Subject, AssignmentCorrection, ClassroomMovementLog
+from coaching.models import (
+    User, Batch, StudentProfile, AttendanceRecord, FeePayment, ClassSchedule,
+    DailyBatchAttendanceLock, Subject, AssignmentCorrection, ClassroomMovementLog,
+    TeacherAttendanceRecord, PeriodSchedule
+)
 from coaching.decorators import super_admin_required, teacher_required, student_required, role_required
+
 
 
 
@@ -1195,5 +1200,34 @@ def record_movement_api(request):
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=400)
     return JsonResponse({'success': False, 'message': 'Invalid HTTP method.'}, status=405)
+
+
+@csrf_exempt
+@login_required
+@role_required('teacher', 'super_admin')
+def teacher_self_attendance_api(request):
+    """API endpoint for teachers to record their own daily attendance check-in or check-out."""
+    if request.method == 'POST':
+        try:
+            today = timezone.localdate()
+            record, created = TeacherAttendanceRecord.objects.get_or_create(
+                teacher=request.user,
+                date=today,
+                defaults={'status': 'present'}
+            )
+            time_str = timezone.localtime().strftime('%I:%M %p')
+            if not created:
+                if not record.time_out:
+                    record.time_out = timezone.localtime().time()
+                    record.save()
+                    return JsonResponse({'success': True, 'message': f"Teacher check-out recorded at {time_str}."})
+                else:
+                    return JsonResponse({'success': True, 'message': f"Already completed attendance for today at {record.time_in.strftime('%I:%M %p')}."})
+
+            return JsonResponse({'success': True, 'message': f"Teacher attendance marked Present at {time_str}."})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    return JsonResponse({'success': False, 'message': 'Invalid HTTP method.'}, status=405)
+
 
 

@@ -17,7 +17,16 @@
 </style>
 {% endblock %}
 
-{% block content %}
+<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h2 style="color: #ffffff; margin-bottom: 4px;">Welcome, {{ request.user.get_full_name|default:request.user.username }}</h2>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">Manage section attendance, student profiles, notebook verifications, and movement logs.</p>
+    </div>
+    <button onclick="markTeacherSelfAttendance()" class="btn-premium" style="padding: 10px 18px; font-size: 0.9rem; background: linear-gradient(135deg, var(--accent-emerald), #059669); font-weight: 600;">
+        <i class="fa-solid fa-user-check" style="margin-right: 6px;"></i> Mark My Attendance Today
+    </button>
+</div>
+
 <!-- KPI Indicators -->
 <div class="kpi-grid">
     <div class="kpi-card purple">
@@ -30,9 +39,9 @@
 
     <div class="kpi-card rose">
         <div>
-            <div class="kpi-title">Overdue Fees</div>
+            <div class="kpi-title">Overdue Dues</div>
             <div class="kpi-value">{{ pending_dues_count }}</div>
-            <span style="font-size: 0.8rem; color: var(--text-secondary);">Students past due date</span>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Students with pending dues</span>
         </div>
     </div>
     <div class="kpi-card amber">
@@ -43,6 +52,7 @@
         </div>
     </div>
 </div>
+
 
     <!-- Daily Attendance Lock & Submit Section -->
     <div class="card-premium" style="margin-bottom: 24px; width: 100%;">
@@ -139,7 +149,7 @@
                 <thead>
                     <tr>
                         <th>Student</th>
-                        <th>Batch</th>
+                        <th>Section</th>
                         <th>Today's Attendance</th>
                         <th>Fee Status</th>
                         <th>Assigned HW / Task</th>
@@ -158,11 +168,11 @@
                             <div id="att-cell-{{ student.id }}">
                                 {% if student.is_batch_locked_today %}
                                     {% if student.today_record and student.today_record.status == 'present' %}
-                                        <span class="badge badge-success" title="Batch attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Present</span>
+                                        <span class="badge badge-success" title="Section attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Present</span>
                                     {% elif student.today_record and student.today_record.status == 'late' %}
-                                        <span class="badge badge-warning" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4);" title="Batch attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Late ({{ student.today_record.minutes_late }}m)</span>
+                                        <span class="badge badge-warning" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4);" title="Section attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Late ({{ student.today_record.minutes_late }}m)</span>
                                     {% else %}
-                                        <span class="badge badge-danger" title="Batch attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Absent</span>
+                                        <span class="badge badge-danger" title="Section attendance locked for today"><i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Absent</span>
                                     {% endif %}
                                 {% else %}
                                     {% if student.today_record and student.today_record.status == 'present' %}
@@ -182,12 +192,13 @@
                             </div>
                         </td>
                         <td>
-                            {% if student.is_paid_this_month %}
-                                <span class="badge badge-success">Paid</span>
+                            {% if student.fee_status == 'Cleared' %}
+                                <span class="badge badge-success"><i class="fa-solid fa-check"></i> Cleared</span>
                             {% else %}
-                                <span class="badge badge-danger">Not Paid</span>
+                                <span class="badge badge-danger"><i class="fa-solid fa-clock"></i> Not Cleared</span>
                             {% endif %}
                         </td>
+
                         <td>
                             <div style="display: flex; gap: 4px; align-items: center; min-width: 170px;">
                                 <input type="text" id="student-note-{{ student.id }}" class="form-control" style="font-size: 0.75rem; padding: 4px 8px; flex: 1;" placeholder="Individual HW task..." value="{{ student.individual_note|default:'' }}">
@@ -573,9 +584,29 @@
             console.error(err);
             alert('Server communication error.');
         });
+    function markTeacherSelfAttendance() {
+        fetch("{% url 'teacher_self_attendance_api' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert("✅ " + data.message);
+            } else {
+                alert("❌ Error: " + data.message);
+            }
+        })
+        .catch(err => {
+            alert("Server communication error.");
+        });
     }
 
     // Init drawing
     drawCalendar(currentYear, currentMonth);
+
 </script>
 {% endblock %}

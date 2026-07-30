@@ -151,11 +151,7 @@
                         <i class="fa-solid fa-person-walking-arrow-right"></i> Class In/Out Scanner
                     </a>
                 </li>
-                <li>
-                    <a href="{% url 'scanner_fees' %}" class="sidebar-link {% block active_fee_scan %}{% endblock %}">
-                        <i class="fa-solid fa-receipt"></i> Fee Collection Scanner
-                    </a>
-                </li>
+
             {% elif user.role == 'student' %}
                 {% if user.username == 'scanner' %}
                     <li>

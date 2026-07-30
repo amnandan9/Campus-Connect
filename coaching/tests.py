@@ -150,6 +150,45 @@ class AttendanceLogicTests(TestCase):
         # Verify record count is still 1
         self.assertEqual(AttendanceRecord.objects.filter(student=self.profile).count(), 1)
 
+    def test_fee_balance_and_status(self):
+        """
+        Verify total fee, remaining balance, and fee status calculations.
+        """
+        self.profile.total_fee = 35000.00
+        self.profile.save()
+        self.assertEqual(self.profile.remaining_balance, 35000.00)
+        self.assertEqual(self.profile.fee_status, 'Not Cleared')
+
+        # Pay part of fee
+        FeePayment.objects.create(student=self.profile, amount_paid=10000.00)
+        self.assertEqual(self.profile.total_paid, 10000.00)
+        self.assertEqual(self.profile.remaining_balance, 25000.00)
+        self.assertEqual(self.profile.fee_status, 'Not Cleared')
+
+        # Pay remaining fee
+        FeePayment.objects.create(student=self.profile, amount_paid=25000.00)
+        self.assertEqual(self.profile.remaining_balance, 0.00)
+        self.assertEqual(self.profile.fee_status, 'Cleared')
+
+    def test_teacher_self_attendance_api(self):
+        """
+        Verify teacher self attendance check-in and check-out logic.
+        """
+        from coaching.models import TeacherAttendanceRecord
+        self.client.login(username="student_bob", password="pass123") # Change role to teacher user
+        teacher = User.objects.create_user(username="teacher_test", role="teacher")
+        teacher.set_password("pass123")
+        teacher.save()
+        self.client.login(username="teacher_test", password="pass123")
+
+        url = reverse('teacher_self_attendance_api')
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(TeacherAttendanceRecord.objects.filter(teacher=teacher).count(), 1)
+
+
     def test_attendance_lock(self):
         """
         Verify that locking a batch prevents marking attendance for that batch.
