@@ -94,7 +94,7 @@
                 <strong style="color: var(--text-primary);" id="pubStudentClass">--</strong>
             </div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
-                <span style="color: var(--text-secondary); font-size: 0.85rem;">Batch:</span>
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Section:</span>
                 <strong style="color: var(--text-primary);" id="pubStudentBatch">--</strong>
             </div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
@@ -102,18 +102,15 @@
                 <strong style="color: var(--text-primary);" id="pubStudentSchool">--</strong>
             </div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
-                <span style="color: var(--text-secondary); font-size: 0.85rem;">Next Due Date:</span>
-                <strong style="color: var(--text-primary);" id="pubNextDue">--/--/----</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; margin-bottom: 6px;">
-                <span style="color: var(--text-secondary); font-size: 0.85rem;">Scanned IP:</span>
-                <strong style="color: var(--accent-indigo); font-size: 0.82rem;" id="pubScannedIp">--</strong>
+                <span style="color: var(--text-secondary); font-size: 0.85rem;">Remaining Fee:</span>
+                <strong style="color: var(--accent-amber);" id="pubRemainingFee">--</strong>
             </div>
             <div style="display: flex; justify-content: space-between; padding-top: 4px;">
                 <span style="color: var(--text-secondary); font-size: 0.85rem;">Fee Status:</span>
-                <span id="pubFeeStatusBadge" class="badge">Paid</span>
+                <span id="pubFeeStatusBadge" class="badge">--</span>
             </div>
         </div>
+
 
         <!-- Teacher Tip / Assignment Note Read-Aloud Box -->
         <div id="pubDailyNoteContainer" style="display: none; margin-bottom: 16px; padding: 14px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.4); border-radius: 12px; text-align: left;">
@@ -259,13 +256,13 @@
                 document.getElementById("pubStudentClass").innerText = data.class_std || "N/A";
                 document.getElementById("pubStudentBatch").innerText = data.batch || "--";
                 document.getElementById("pubStudentSchool").innerText = data.school || "--";
-                document.getElementById("pubNextDue").innerText = data.next_due || "--/--/----";
-                document.getElementById("pubScannedIp").innerText = data.scanned_ip || "Logged";
+                document.getElementById("pubRemainingFee").innerText = data.remaining_fee || "Cleared";
                 
                 const badgeEl = document.getElementById("pubFeeStatusBadge");
-                const feeStatus = data.fee_status || "Not Paid";
+                const feeStatus = data.fee_status || "Not Cleared";
                 badgeEl.innerText = feeStatus;
-                badgeEl.className = feeStatus === "Paid" ? "badge badge-success" : "badge badge-danger";
+                badgeEl.className = feeStatus === "Cleared" ? "badge badge-success" : "badge badge-danger";
+
                 
                 const photoImg = document.getElementById("pubStudentPhoto");
                 const placeholder = document.getElementById("pubPhotoPlaceholder");

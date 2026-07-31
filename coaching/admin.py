@@ -21,7 +21,8 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Batch)
 class BatchAdmin(admin.ModelAdmin):
-    list_display = ('name', 'start_time', 'timing', 'created_at')
+    list_display = ('name', 'teacher', 'start_time', 'timing', 'created_at')
+    list_filter = ('teacher',)
     search_fields = ('name', 'description')
 
 @admin.register(StudentProfile)

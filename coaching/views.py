@@ -177,41 +177,54 @@ def manage_teacher(request, teacher_id=None):
 # --- Teacher Views ---
 
 @login_required
+@login_required
 @teacher_required
 def teacher_dashboard(request):
     today = timezone.localdate()
     first_of_month = today.replace(day=1)
     
-    # 1. Dashboard summary boxes
-    # Daily Attendance rate
-    todays_total_schedules = ClassSchedule.objects.filter(date=today, is_holiday=False).count()
-    todays_att_records = AttendanceRecord.objects.filter(date=today)
+    # 1. Scoping: filter sections and students if teacher is assigned to specific sections/subjects
+    assigned_batch_ids = list(request.user.assigned_batches.values_list('id', flat=True))
+    if not assigned_batch_ids:
+        assigned_batch_ids = list(PeriodSchedule.objects.filter(teacher=request.user).values_list('section_id', flat=True))
+        
+    if assigned_batch_ids:
+        batches = Batch.objects.filter(id__in=assigned_batch_ids)
+        students = StudentProfile.objects.filter(user__is_active=True, batch_id__in=assigned_batch_ids)
+    else:
+        batches = Batch.objects.all()
+        students = StudentProfile.objects.filter(user__is_active=True)
+
+    # Daily Attendance rate for relevant students
+    student_ids = set(students.values_list('id', flat=True))
+    todays_att_records = AttendanceRecord.objects.filter(date=today, student_id__in=student_ids)
     todays_present = todays_att_records.filter(status='present').count()
     todays_total = todays_att_records.count()
     todays_attendance_rate = int((todays_present / todays_total * 100)) if todays_total > 0 else 0
     
     # Monthly fee collected
-    monthly_fees_collected = FeePayment.objects.filter(payment_date__gte=first_of_month).aggregate(total=Sum('amount_paid'))['total'] or 0.00
+    monthly_fees_collected = FeePayment.objects.filter(payment_date__gte=first_of_month, student_id__in=student_ids).aggregate(total=Sum('amount_paid'))['total'] or 0.00
     
     # Pending Dues count and list (active students who haven't paid this month)
     paid_student_ids = set(
         FeePayment.objects.filter(
             payment_date__gte=first_of_month,
-            payment_date__lte=today
+            payment_date__lte=today,
+            student_id__in=student_ids
         ).values_list('student_id', flat=True)
     )
-    overdue_students = StudentProfile.objects.filter(user__is_active=True).exclude(id__in=paid_student_ids)
+    overdue_students = students.exclude(id__in=paid_student_ids)
     pending_dues_count = overdue_students.count()
     
     # Newly registered students (last 30 days)
     thirty_days_ago = today - datetime.timedelta(days=30)
-    new_registers_count = StudentProfile.objects.filter(joining_date__gte=thirty_days_ago, user__is_active=True).count()
+    new_registers_count = students.filter(joining_date__gte=thirty_days_ago).count()
     
     # 2. Student Directory list with search/filters
-    students = StudentProfile.objects.filter(user__is_active=True)
     query = request.GET.get('q', '')
     batch_filter = request.GET.get('batch', '')
     due_filter = request.GET.get('due', '')
+
     
     if query:
         students = students.filter(
@@ -277,7 +290,7 @@ def register_student(request):
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         email = request.POST.get('email')
-        password = request.POST.get('password')
+        password = request.POST.get('password') or 'student123'
         
         class_std = request.POST.get('class_std')
         school = request.POST.get('school_college')
@@ -983,24 +996,6 @@ def public_student_info(request):
             profile.last_scanned_at = timezone.now()
             profile.save(update_fields=['last_scanned_ip', 'last_scanned_at'])
 
-            # Determine fee payment status & notifications
-            today = timezone.localdate()
-            has_paid = FeePayment.objects.filter(
-                student=profile,
-                payment_date__gte=today.replace(day=1),
-                payment_date__lte=today
-            ).exists()
-            fee_status_str = "Paid" if has_paid else "Not Paid"
-
-            fee_reminder_msg = ""
-            if not has_paid:
-                if profile.next_due_date < today:
-                    fee_reminder_msg = f"⚠️ FEE REMINDER: Payment is OVERDUE since {profile.next_due_date.strftime('%d-%m-%Y')}. Please submit your fee."
-                else:
-                    days_left = (profile.next_due_date - today).days
-                    if days_left <= 7:
-                        fee_reminder_msg = f"🔔 FEE REMINDER: Next fee due date is {profile.next_due_date.strftime('%d-%m-%Y')} ({days_left} days remaining)."
-
             effective_note = ""
             if profile.individual_note and profile.individual_note.strip():
                 effective_note = profile.individual_note.strip()
@@ -1011,6 +1006,9 @@ def public_student_info(request):
             if face_data and not face_data.startswith('data:'):
                 face_data = f"data:image/jpeg;base64,{face_data}"
 
+            rem_bal = profile.remaining_balance
+            rem_fee_str = f"₹{rem_bal:,.2f}" if rem_bal > 0 else "Cleared"
+
             return JsonResponse({
                 'success': True,
                 'student_name': profile.user.get_full_name(),
@@ -1020,11 +1018,10 @@ def public_student_info(request):
                 'school': profile.school_college,
                 'class_std': profile.class_std or 'N/A',
                 'face_data': face_data,
-                'fee_status': fee_status_str,
-                'fee_reminder_msg': fee_reminder_msg,
-                'next_due': profile.next_due_date.strftime('%d-%m-%Y'),
-                'scanned_ip': client_ip,
+                'fee_status': profile.fee_status,
+                'remaining_fee': rem_fee_str,
             })
+
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)})
 
@@ -1097,9 +1094,23 @@ def save_student_note_api(request):
 @role_required('teacher', 'super_admin')
 def scanner_corrections(request):
     """View for subject teachers to scan student QR codes for notebook corrections, marks, and project verifications."""
-    subjects = Subject.objects.all()
-    students = StudentProfile.objects.select_related('user', 'batch').all()
-    recent_corrections = AssignmentCorrection.objects.select_related('student__user', 'subject', 'teacher')[:20]
+    if request.user.role == 'teacher':
+        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periodschedule__teacher=request.user)).distinct()
+        if not subjects.exists():
+            subjects = Subject.objects.all()
+        assigned_batch_ids = list(request.user.assigned_batches.values_list('id', flat=True))
+        if not assigned_batch_ids:
+            assigned_batch_ids = list(PeriodSchedule.objects.filter(teacher=request.user).values_list('section_id', flat=True))
+        if assigned_batch_ids:
+            students = StudentProfile.objects.filter(batch_id__in=assigned_batch_ids, user__is_active=True).select_related('user', 'batch')
+        else:
+            students = StudentProfile.objects.filter(user__is_active=True).select_related('user', 'batch')
+        recent_corrections = AssignmentCorrection.objects.filter(teacher=request.user).select_related('student__user', 'subject', 'teacher')[:20]
+    else:
+        subjects = Subject.objects.all()
+        students = StudentProfile.objects.filter(user__is_active=True).select_related('user', 'batch')
+        recent_corrections = AssignmentCorrection.objects.select_related('student__user', 'subject', 'teacher')[:20]
+
     return render(request, 'coaching/scanner_corrections.html', {
         'subjects': subjects,
         'students': students,
@@ -1111,12 +1122,20 @@ def scanner_corrections(request):
 @role_required('teacher', 'super_admin')
 def scanner_movement(request):
     """View for tracking classroom IN/OUT exits and entries via student QR scans."""
-    subjects = Subject.objects.all()
-    recent_logs = ClassroomMovementLog.objects.select_related('student__user', 'subject', 'teacher')[:20]
+    if request.user.role == 'teacher':
+        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periodschedule__teacher=request.user)).distinct()
+        if not subjects.exists():
+            subjects = Subject.objects.all()
+        recent_logs = ClassroomMovementLog.objects.filter(teacher=request.user).select_related('student__user', 'subject', 'teacher')[:20]
+    else:
+        subjects = Subject.objects.all()
+        recent_logs = ClassroomMovementLog.objects.select_related('student__user', 'subject', 'teacher')[:20]
+
     return render(request, 'coaching/scanner_movement.html', {
         'subjects': subjects,
         'recent_logs': recent_logs,
     })
+
 
 
 @csrf_exempt
@@ -1138,6 +1157,25 @@ def verify_correction_api(request):
 
             student = get_object_or_404(StudentProfile, qr_code_token=qr_token)
             subject = Subject.objects.filter(id=subject_id).first() if subject_id else None
+
+            if request.user.role == 'teacher':
+                has_access = False
+                if student.batch and student.batch.teacher == request.user:
+                    has_access = True
+                elif subject and subject.teacher == request.user:
+                    has_access = True
+                elif student.batch and PeriodSchedule.objects.filter(section=student.batch, teacher=request.user).exists():
+                    has_access = True
+                elif not request.user.assigned_batches.exists() and not request.user.teaching_subjects.exists():
+                    has_access = True
+
+                if not has_access:
+                    sec_name = student.batch.name if student.batch else 'Unassigned'
+                    return JsonResponse({
+                        'success': False,
+                        'message': f"Permission Denied: You can only record corrections for your assigned Section ({sec_name}) or Subject!"
+                    }, status=403)
+
 
             correction = AssignmentCorrection.objects.create(
                 student=student,
@@ -1178,6 +1216,25 @@ def record_movement_api(request):
 
             student = get_object_or_404(StudentProfile, qr_code_token=qr_token)
             subject = Subject.objects.filter(id=subject_id).first() if subject_id else None
+
+            if request.user.role == 'teacher':
+                has_access = False
+                if student.batch and student.batch.teacher == request.user:
+                    has_access = True
+                elif subject and subject.teacher == request.user:
+                    has_access = True
+                elif student.batch and PeriodSchedule.objects.filter(section=student.batch, teacher=request.user).exists():
+                    has_access = True
+                elif not request.user.assigned_batches.exists() and not request.user.teaching_subjects.exists():
+                    has_access = True
+
+                if not has_access:
+                    sec_name = student.batch.name if student.batch else 'Unassigned'
+                    return JsonResponse({
+                        'success': False,
+                        'message': f"Permission Denied: You can only record movement for your assigned Section ({sec_name}) or Subject!"
+                    }, status=403)
+
 
             log_entry = ClassroomMovementLog.objects.create(
                 student=student,

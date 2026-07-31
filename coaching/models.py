@@ -23,11 +23,13 @@ class User(AbstractUser):
 
 class Batch(models.Model):
     name = models.CharField(max_length=100, verbose_name="Section Name")
+    teacher = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_batches', verbose_name="Assigned Section Teacher")
     description = models.TextField(blank=True)
     timing = models.CharField(max_length=100, help_text="e.g. Mon-Wed-Fri 7:15 PM - 8:15 PM")
     start_time = models.TimeField(default='09:00:00', help_text="Section start time")
     daily_note = models.TextField(blank=True, null=True, help_text="Daily teacher tip, assignment, or announcement for the section")
     created_at = models.DateTimeField(auto_now_add=True)
+
 
     class Meta:
         verbose_name = "Section"
