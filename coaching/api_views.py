@@ -1,6 +1,8 @@
+import re
 import json
 import datetime
 from django.http import JsonResponse
+
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.db.models import Q, Avg
@@ -380,7 +382,7 @@ def schoolai_chat_api(request):
     Public/Authenticated REST API Endpoint for SchoolAiVoice Assistant.
     Accessible from login page & base template widget.
     Enforces natural conversation, creator attribution ("I was created by Keerthana of 8th std, Flora Carmeli Convent Mysore."),
-    and identity verification before returning sensitive records.
+    fetches real Django DB records, and returns warm, empathetic responses.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
@@ -390,43 +392,62 @@ def schoolai_chat_api(request):
         user_message = data.get('message', '').strip()
         session_ctx = data.get('session_context', {})
 
-        if request.user.is_authenticated and request.user.role == 'teacher':
+        if hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False) and getattr(request.user, 'role', '') == 'teacher':
             session_ctx['is_logged_in_teacher'] = True
             session_ctx['teacher_username'] = request.user.username
 
+
+        # 1. Search for potential student query in message or session context
+        student_query = ""
+        name_match = re.search(r"(?:how is|about|check|details of|for|status of|student|marks of|attendance of)\s+([A-Za-z]+)", user_message, re.IGNORECASE)
+        if name_match:
+            student_query = name_match.group(1).strip()
+        elif session_ctx.get('pending_student_name'):
+            student_query = session_ctx.get('pending_student_name')
+        elif session_ctx.get('student_name'):
+            student_query = session_ctx.get('student_name')
+
+        db_data = None
+        if session_ctx.get('verified') or session_ctx.get('is_logged_in_teacher'):
+            if student_query and student_query.lower() not in ['your', 'you', 'the', 'a', 'an', 'my', 'child', 'student']:
+                profile = StudentProfile.objects.filter(
+                    Q(user__first_name__icontains=student_query) |
+                    Q(user__last_name__icontains=student_query) |
+                    Q(user__username__icontains=student_query)
+                ).select_related('user', 'batch').first()
+
+                if profile:
+                    total_att = AttendanceRecord.objects.filter(student=profile).count()
+                    present_att = AttendanceRecord.objects.filter(student=profile, status='present').count()
+                    att_rate = (present_att / total_att * 100.0) if total_att > 0 else 100.0
+
+                    corrections = AssignmentCorrection.objects.filter(student=profile).select_related('subject')[:5]
+                    marks_list = [
+                        {
+                            'subject': c.subject.name if c.subject else 'General',
+                            'marks_obtained': float(c.marks_obtained or 0),
+                            'max_marks': float(c.max_marks or 100)
+                        }
+                        for c in corrections
+                    ]
+
+                    db_data = {
+                        'student_found': True,
+                        'student_name': profile.user.get_full_name(),
+                        'section': profile.batch.name if profile.batch else 'Unassigned',
+                        'attendance_rate': att_rate,
+                        'marks_list': marks_list,
+                        'remaining_fee': float(profile.remaining_balance),
+                        'fee_status': profile.fee_status,
+                        'parent_contact': profile.parent_contact
+                    }
+
+
         from SchoolAiVoice.ai_engine import ai_engine
-        result = ai_engine.process_message(user_message, session_ctx)
+        result = ai_engine.process_message(user_message, session_ctx, db_data=db_data)
 
-        # If action requires fetching student data after verification
-        if result.get('action') == 'fetch_student_data':
-            student_query = result.get('student_name', '')
-            profile = StudentProfile.objects.filter(
-                Q(user__first_name__icontains=student_query) |
-                Q(user__last_name__icontains=student_query) |
-                Q(user__username__icontains=student_query)
-            ).select_related('user', 'batch').first()
-
-            if profile:
-                total_att = AttendanceRecord.objects.filter(student=profile).count()
-                present_att = AttendanceRecord.objects.filter(student=profile, status='present').count()
-                att_rate = (present_att / total_att * 100.0) if total_att > 0 else 100.0
-
-                corrections = AssignmentCorrection.objects.filter(student=profile).select_related('subject')[:5]
-                marks_list = [
-                    {'subject': c.subject.name if c.subject else 'General', 'marks_obtained': float(c.marks_obtained or 0), 'max_marks': float(c.max_marks or 100)}
-                    for c in corrections
-                ]
-
-                reply_text = ai_engine.format_empathetic_performance_summary(
-                    student_name=profile.user.get_full_name(),
-                    marks_list=marks_list,
-                    attendance_pct=att_rate,
-                    fee_status=profile.fee_status,
-                    remaining_fee=float(profile.remaining_balance)
-                )
-                result['reply'] = reply_text
-            else:
-                result['reply'] = f"I checked the records, but I couldn't find a student matching '{student_query}'. Please double check the spelling."
+        if result.get('student_name'):
+            session_ctx['student_name'] = result.get('student_name')
 
         return JsonResponse({
             'success': True,
@@ -441,4 +462,5 @@ def schoolai_chat_api(request):
             'reply': "I couldn't process that right now. Please try asking again in a moment.",
             'error': str(e)
         }, status=400)
+
 
