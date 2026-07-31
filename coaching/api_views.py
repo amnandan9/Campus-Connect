@@ -339,3 +339,73 @@ def voice_academic_summary(request):
         'remaining_fee': float(profile.remaining_balance),
         'fee_status': profile.fee_status
     })
+
+
+@csrf_exempt
+def schoolai_chat_api(request):
+    """
+    Public/Authenticated REST API Endpoint for SchoolAiVoice Assistant.
+    Accessible from login page & base template widget.
+    Enforces natural conversation, creator attribution ("I was created by Keerthana of 8th std, Flora Carmeli Convent Mysore."),
+    and identity verification before returning sensitive records.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        user_message = data.get('message', '').strip()
+        session_ctx = data.get('session_context', {})
+
+        if request.user.is_authenticated and request.user.role == 'teacher':
+            session_ctx['is_logged_in_teacher'] = True
+            session_ctx['teacher_username'] = request.user.username
+
+        from SchoolAiVoice.ai_engine import ai_engine
+        result = ai_engine.process_message(user_message, session_ctx)
+
+        # If action requires fetching student data after verification
+        if result.get('action') == 'fetch_student_data':
+            student_query = result.get('student_name', '')
+            profile = StudentProfile.objects.filter(
+                Q(user__first_name__icontains=student_query) |
+                Q(user__last_name__icontains=student_query) |
+                Q(user__username__icontains=student_query)
+            ).select_related('user', 'batch').first()
+
+            if profile:
+                total_att = AttendanceRecord.objects.filter(student=profile).count()
+                present_att = AttendanceRecord.objects.filter(student=profile, status='present').count()
+                att_rate = (present_att / total_att * 100.0) if total_att > 0 else 100.0
+
+                corrections = AssignmentCorrection.objects.filter(student=profile).select_related('subject')[:5]
+                marks_list = [
+                    {'subject': c.subject.name if c.subject else 'General', 'marks_obtained': float(c.marks_obtained or 0), 'max_marks': float(c.max_marks or 100)}
+                    for c in corrections
+                ]
+
+                reply_text = ai_engine.format_empathetic_performance_summary(
+                    student_name=profile.user.get_full_name(),
+                    marks_list=marks_list,
+                    attendance_pct=att_rate,
+                    fee_status=profile.fee_status,
+                    remaining_fee=float(profile.remaining_balance)
+                )
+                result['reply'] = reply_text
+            else:
+                result['reply'] = f"I checked the records, but I couldn't find a student matching '{student_query}'. Please double check the spelling."
+
+        return JsonResponse({
+            'success': True,
+            'reply': result.get('reply'),
+            'intent': result.get('intent'),
+            'session_context': session_ctx
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'reply': "I couldn't process that right now. Please try asking again in a moment.",
+            'error': str(e)
+        }, status=400)
+

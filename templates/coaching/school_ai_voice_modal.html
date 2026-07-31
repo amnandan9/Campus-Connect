@@ -1,0 +1,272 @@
+<!-- SchoolAiVoice Floating Assistant Widget -->
+<style>
+    .school-ai-floating-btn {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9990;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6, #d946ef);
+        background-size: 200% 200%;
+        animation: pulseGlow 4s infinite alternate;
+        color: #ffffff;
+        border: none;
+        border-radius: 50px;
+        padding: 14px 22px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        box-shadow: 0 10px 25px rgba(139, 92, 246, 0.45);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .school-ai-floating-btn:hover {
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 14px 30px rgba(139, 92, 246, 0.6);
+    }
+    @keyframes pulseGlow {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 100% 50%; }
+    }
+
+    .school-ai-modal {
+        display: none;
+        position: fixed;
+        bottom: 90px;
+        right: 24px;
+        width: 380px;
+        max-width: calc(100vw - 32px);
+        height: 540px;
+        max-height: calc(100vh - 120px);
+        background: rgba(15, 23, 42, 0.96);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        z-index: 9999;
+        flex-direction: column;
+        overflow: hidden;
+        animation: slideUp 0.3s ease-out;
+    }
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .school-ai-header {
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.25));
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .school-ai-title {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 1.05rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .school-ai-body {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .school-ai-msg {
+        max-width: 85%;
+        padding: 12px 16px;
+        border-radius: 16px;
+        font-size: 0.9rem;
+        line-height: 1.45;
+        word-wrap: break-word;
+    }
+    .school-ai-msg.bot {
+        background: rgba(30, 41, 59, 0.9);
+        color: #e2e8f0;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        align-self: flex-start;
+        border-bottom-left-radius: 4px;
+    }
+    .school-ai-msg.user {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #ffffff;
+        align-self: flex-end;
+        border-bottom-right-radius: 4px;
+    }
+
+    .school-ai-footer {
+        padding: 12px;
+        background: rgba(15, 23, 42, 0.95);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .school-ai-input {
+        flex: 1;
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 25px;
+        padding: 10px 16px;
+        color: #ffffff;
+        font-size: 0.9rem;
+        outline: none;
+    }
+    .school-ai-btn-mic {
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        color: #c084fc;
+        border-radius: 50%;
+        width: 38px;
+        height: 38px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+    .school-ai-btn-mic.recording {
+        background: #ef4444;
+        color: #ffffff;
+        animation: blinkMic 1s infinite;
+    }
+    @keyframes blinkMic {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+
+<button class="school-ai-floating-btn" onclick="toggleSchoolAiModal()">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+    <span>Connect AI Voice</span>
+</button>
+
+<div class="school-ai-modal" id="schoolAiModal">
+    <div class="school-ai-header">
+        <div class="school-ai-title">
+            <svg width="20" height="20" fill="none" stroke="#c084fc" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+            Campus-Connect AI Assistant
+        </div>
+        <button onclick="toggleSchoolAiModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <div class="school-ai-body" id="schoolAiBody">
+        <div class="school-ai-msg bot">
+            Hello! I am your Campus-Connect AI Assistant. How can I help you today? You can ask about student attendance, marks, homework, fee status, or ask <b>"Who created you?"</b>.
+        </div>
+    </div>
+
+    <div class="school-ai-footer">
+        <button class="school-ai-btn-mic" id="schoolAiMicBtn" onclick="toggleSchoolAiSpeech()" title="Speak Command">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+        </button>
+        <input type="text" class="school-ai-input" id="schoolAiInput" placeholder="Type or speak a question..." onkeypress="if(event.key==='Enter') sendSchoolAiMsg()">
+        <button onclick="sendSchoolAiMsg()" style="background: #8b5cf6; border: none; color: white; border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+        </button>
+    </div>
+</div>
+
+<script>
+    let schoolAiContext = {};
+    let isRecording = false;
+    let recognition = null;
+
+    function toggleSchoolAiModal() {
+        const modal = document.getElementById('schoolAiModal');
+        modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+    }
+
+    function appendSchoolAiMsg(sender, text) {
+        const body = document.getElementById('schoolAiBody');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `school-ai-msg ${sender}`;
+        msgDiv.innerHTML = text;
+        body.appendChild(msgDiv);
+        body.scrollTop = body.scrollHeight;
+
+        if (sender === 'bot' && 'speechSynthesis' in window) {
+            const cleanText = text.replace(/<[^>]*>?/gm, '');
+            const utter = new SpeechSynthesisUtterance(cleanText);
+            window.speechSynthesis.speak(utter);
+        }
+    }
+
+    async function sendSchoolAiMsg() {
+        const input = document.getElementById('schoolAiInput');
+        const msg = input.value.trim();
+        if (!msg) return;
+
+        appendSchoolAiMsg('user', msg);
+        input.value = '';
+
+        try {
+            const res = await fetch('/api/v1/schoolai/chat/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, session_context: schoolAiContext })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                schoolAiContext = data.session_context || schoolAiContext;
+                appendSchoolAiMsg('bot', data.reply);
+            } else {
+                appendSchoolAiMsg('bot', data.reply || "I couldn't process that right now. Please try again.");
+            }
+        } catch (e) {
+            appendSchoolAiMsg('bot', "Connection error. Please try again in a moment.");
+        }
+    }
+
+    function toggleSchoolAiSpeech() {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert("Speech recognition is not supported in your browser. Please type your message.");
+            return;
+        }
+
+        const micBtn = document.getElementById('schoolAiMicBtn');
+        if (isRecording) {
+            if (recognition) recognition.stop();
+            isRecording = false;
+            micBtn.classList.remove('recording');
+            return;
+        }
+
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRec();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = function() {
+            isRecording = true;
+            micBtn.classList.add('recording');
+        };
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('schoolAiInput').value = transcript;
+            sendSchoolAiMsg();
+        };
+
+        recognition.onerror = function() {
+            isRecording = false;
+            micBtn.classList.remove('recording');
+        };
+
+        recognition.onend = function() {
+            isRecording = false;
+            micBtn.classList.remove('recording');
+        };
+
+        recognition.start();
+    }
+</script>

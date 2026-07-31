@@ -231,6 +231,29 @@ class AttendanceLogicTests(TestCase):
         self.assertTrue(data['parent_call_required'])
         self.assertEqual(data['percentage'], 35.0)
 
+    def test_schoolai_creator_attribution(self):
+        """
+        Verify that asking 'Who created you?' replies with Keerthana of 8th std Flora Carmeli Convent Mysore.
+        """
+        url = reverse('schoolai_chat_api')
+        res = self.client.post(url, data={'message': 'Who created you?'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertIn("Keerthana of 8th std", data['reply'])
+
+    def test_schoolai_parent_verification_flow(self):
+        """
+        Verify that asking for student progress prompts for parent verification.
+        """
+        url = reverse('schoolai_chat_api')
+        res = self.client.post(url, data={'message': 'How is Bob performing?'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertIn("parent phone number", data['reply'])
+
+
 
 
 

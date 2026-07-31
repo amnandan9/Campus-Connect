@@ -61,7 +61,11 @@ urlpatterns = [
     path('api/v1/voice/notification/', api_views.voice_create_notification, name='voice_create_notification'),
     path('api/v1/voice/teacher/', api_views.voice_get_teacher, name='voice_get_teacher'),
     path('api/v1/voice/academic-summary/', api_views.voice_academic_summary, name='voice_academic_summary'),
+
+    # SchoolAiVoice Assistant Public Endpoint
+    path('api/v1/schoolai/chat/', api_views.schoolai_chat_api, name='schoolai_chat_api'),
 ]
+
 
 
 

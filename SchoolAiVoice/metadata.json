@@ -1,0 +1,6 @@
+{
+  "name": "School Management System & AI Voice Assistant",
+  "description": "Django-compatible School Management System featuring AI Voice Assistant, QR attendance, notebook verification, exit tracking, fee management, and secure REST APIs.",
+  "requestFramePermissions": ["microphone", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
