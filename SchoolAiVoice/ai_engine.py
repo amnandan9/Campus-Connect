@@ -149,8 +149,9 @@ class SchoolAiVoiceEngine:
             }
 
         # 6. Default Parent Student Inquiry
-        if any(kw in text_lower for kw in ['performance', 'marks', 'attendance', 'fee', 'child', 'progress', 'report', 'absent', 'notebook', 'leaving']):
+        if any(kw in text_lower for kw in ['perform', 'marks', 'attendance', 'fee', 'child', 'progress', 'report', 'absent', 'notebook', 'leaving', 'doing', 'score', 'result']):
             student_name_match = re.search(r"(?:how is|about|check|details of|for)\s+([A-Za-z]+)", text, re.IGNORECASE)
+
             student_name = student_name_match.group(1) if student_name_match else session_context.get('student_name', '')
 
             if not session_context.get('verified'):
