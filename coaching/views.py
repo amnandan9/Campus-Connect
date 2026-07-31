@@ -506,8 +506,9 @@ def student_detail(request, student_id):
     return render(request, 'coaching/student_detail.html', context)
 
 @login_required
-@teacher_required
+@role_required('super_admin')
 def collect_fee(request, student_id):
+
     if request.method == 'POST':
         profile = get_object_or_404(StudentProfile, id=student_id)
         amount = request.POST.get('amount')
@@ -749,8 +750,9 @@ def mark_attendance_api(request):
 
 @csrf_exempt
 @login_required
-@role_required('teacher', 'super_admin')
+@role_required('super_admin')
 def toggle_attendance_lock_api(request):
+
     """
     API endpoint for Teachers and Admins to submit/lock or unlock attendance for a batch on a date.
     """
@@ -1095,27 +1097,26 @@ def save_student_note_api(request):
 def scanner_corrections(request):
     """View for subject teachers to scan student QR codes for notebook corrections, marks, and project verifications."""
     if request.user.role == 'teacher':
-        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periods__teacher=request.user)).distinct()
-        if not subjects.exists():
-            subjects = Subject.objects.all()
-        assigned_batch_ids = list(request.user.assigned_batches.values_list('id', flat=True))
-        if not assigned_batch_ids:
-            assigned_batch_ids = list(PeriodSchedule.objects.filter(teacher=request.user).values_list('section_id', flat=True))
-        if assigned_batch_ids:
-            students = StudentProfile.objects.filter(batch_id__in=assigned_batch_ids, user__is_active=True).select_related('user', 'batch')
-        else:
-            students = StudentProfile.objects.filter(user__is_active=True).select_related('user', 'batch')
+        batches = request.user.assigned_batches.all()
+        if not batches.exists():
+            batches = Batch.objects.all()
+        assigned_batch_ids = list(batches.values_list('id', flat=True))
+        students = StudentProfile.objects.filter(batch_id__in=assigned_batch_ids, user__is_active=True).select_related('user', 'batch')
         recent_corrections = AssignmentCorrection.objects.filter(teacher=request.user).select_related('student__user', 'subject', 'teacher')[:20]
     else:
-        subjects = Subject.objects.all()
+        batches = Batch.objects.all()
         students = StudentProfile.objects.filter(user__is_active=True).select_related('user', 'batch')
         recent_corrections = AssignmentCorrection.objects.select_related('student__user', 'subject', 'teacher')[:20]
 
+    subjects = Subject.objects.all()
+
     return render(request, 'coaching/scanner_corrections.html', {
+        'batches': batches,
         'subjects': subjects,
         'students': students,
         'recent_corrections': recent_corrections,
     })
+
 
 
 @login_required
@@ -1147,35 +1148,48 @@ def verify_correction_api(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            qr_token = data.get('qr_token')
+            qr_token = data.get('qr_token', '').strip()
+            clean_token = qr_token.replace('STD-', '').strip()
             work_type = data.get('work_type', 'notebook')
             title = data.get('title', 'Routine Correction')
             subject_id = data.get('subject_id')
+            batch_id = data.get('batch_id')
             marks_obtained = data.get('marks_obtained')
             max_marks = data.get('max_marks', 100)
             status = data.get('status', 'verified')
             teacher_remarks = data.get('teacher_remarks', '')
 
-            student = get_object_or_404(StudentProfile, qr_code_token=qr_token)
+            student = StudentProfile.objects.filter(
+                Q(qr_code_token=qr_token) | Q(qr_code_token=clean_token) | Q(user__username=qr_token) | Q(user__username=clean_token)
+            ).first()
+
+            if not student:
+                return JsonResponse({'success': False, 'message': f"Student record for QR '{qr_token}' not found."}, status=404)
+
             subject = Subject.objects.filter(id=subject_id).first() if subject_id else None
+            if not subject and request.user.role == 'teacher':
+                subject = request.user.teaching_subjects.first() or Subject.objects.first()
 
             if request.user.role == 'teacher':
                 has_access = False
-                if student.batch and student.batch.teacher == request.user:
+                if batch_id and int(batch_id) in request.user.assigned_batches.values_list('id', flat=True):
+                    has_access = True
+                elif student.batch and student.batch in request.user.assigned_batches.all():
+                    has_access = True
+                elif student.batch and student.batch.teacher == request.user:
                     has_access = True
                 elif subject and subject.teacher == request.user:
                     has_access = True
-                elif student.batch and PeriodSchedule.objects.filter(section=student.batch, teacher=request.user).exists():
-                    has_access = True
-                elif not request.user.assigned_batches.exists() and not request.user.teaching_subjects.exists():
+                elif not request.user.assigned_batches.exists():
                     has_access = True
 
                 if not has_access:
                     sec_name = student.batch.name if student.batch else 'Unassigned'
                     return JsonResponse({
                         'success': False,
-                        'message': f"Permission Denied: You can only record corrections for your assigned Section ({sec_name}) or Subject!"
+                        'message': f"Permission Denied: You are only authorized to record corrections for your assigned Section ({sec_name})!"
                     }, status=403)
+
 
 
             correction = AssignmentCorrection.objects.create(
@@ -1210,31 +1224,39 @@ def record_movement_api(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            qr_token = data.get('qr_token')
+            qr_token = data.get('qr_token', '').strip()
+            clean_token = qr_token.replace('STD-', '').strip()
             movement_type = data.get('movement_type', 'OUT')
             reason = data.get('reason', 'Classroom Exit')
             subject_id = data.get('subject_id')
 
-            student = get_object_or_404(StudentProfile, qr_code_token=qr_token)
+            student = StudentProfile.objects.filter(
+                Q(qr_code_token=qr_token) | Q(qr_code_token=clean_token) | Q(user__username=qr_token) | Q(user__username=clean_token)
+            ).first()
+
+            if not student:
+                return JsonResponse({'success': False, 'message': f"Student record for QR '{qr_token}' not found."}, status=404)
+
             subject = Subject.objects.filter(id=subject_id).first() if subject_id else None
 
             if request.user.role == 'teacher':
                 has_access = False
-                if student.batch and student.batch.teacher == request.user:
+                if student.batch and student.batch in request.user.assigned_batches.all():
+                    has_access = True
+                elif student.batch and student.batch.teacher == request.user:
                     has_access = True
                 elif subject and subject.teacher == request.user:
                     has_access = True
-                elif student.batch and PeriodSchedule.objects.filter(section=student.batch, teacher=request.user).exists():
-                    has_access = True
-                elif not request.user.assigned_batches.exists() and not request.user.teaching_subjects.exists():
+                elif not request.user.assigned_batches.exists():
                     has_access = True
 
                 if not has_access:
                     sec_name = student.batch.name if student.batch else 'Unassigned'
                     return JsonResponse({
                         'success': False,
-                        'message': f"Permission Denied: You can only record movement for your assigned Section ({sec_name}) or Subject!"
+                        'message': f"Permission Denied: You can only record movement for your assigned Section ({sec_name})!"
                     }, status=403)
+
 
 
             log_entry = ClassroomMovementLog.objects.create(

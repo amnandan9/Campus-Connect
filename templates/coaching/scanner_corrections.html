@@ -36,14 +36,15 @@
     <!-- Controls Form -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 16px; border: 1px solid var(--border-color);">
         <div>
-            <label class="form-label" for="subjectSelect">Subject</label>
-            <select id="subjectSelect" class="form-control">
-                <option value="">-- Select Subject --</option>
-                {% for sub in subjects %}
-                    <option value="{{ sub.id }}">{{ sub.name }} {% if sub.code %}({{ sub.code }}){% endif %}</option>
+            <label class="form-label" for="batchSelect">Assigned Section / Batch</label>
+            <select id="batchSelect" class="form-control">
+                <option value="">-- Select Section --</option>
+                {% for b in batches %}
+                    <option value="{{ b.id }}">{{ b.name }}</option>
                 {% endfor %}
             </select>
         </div>
+
 
         <div>
             <label class="form-label" for="workTypeSelect">Work Type</label>

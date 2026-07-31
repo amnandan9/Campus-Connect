@@ -11,9 +11,10 @@ logger = logging.getLogger("SchoolAiVoiceEngine")
 
 class SchoolAiVoiceEngine:
     """
-    Advanced Smart Multilingual AI Assistant Processor for Campus-Connect.
-    Handles real-time Django database context parsing, creator attribution,
-    empathetic performance summaries, parent/teacher verification, and section scoping.
+    Advanced Multilingual AI Assistant Processor for Campus-Connect.
+    Supports READ operations (fetching performance, attendance, fee, notebook checks)
+    and WRITE operations (marking attendance, recording marks, notebook sign-offs)
+    with strict section authorization and creator attribution.
     """
 
     def __init__(self):
@@ -40,27 +41,20 @@ class SchoolAiVoiceEngine:
 
     def detect_language(self, text: str) -> str:
         """Detects language script or keywords (Kannada, Hindi, Tamil, Telugu, Malayalam, English)."""
-        # Kannada unicode range: \u0C80-\u0CFF
-        if re.search(r'[\u0C80-\u0CFF]', text) or any(w in text.lower() for w in ['hegiddiyabya', 'hegiddira', 'kannada', 'namaskara']):
+        if re.search(r'[\u0C80-\u0CFF]', text) or any(w in text.lower() for w in ['hegiddira', 'kannada', 'namaskara']):
             return 'kn'
-        # Hindi unicode range: \u0900-\u097F
         if re.search(r'[\u0900-\u097F]', text) or any(w in text.lower() for w in ['kaise', 'kya', 'namaste', 'hindi']):
             return 'hi'
-        # Tamil unicode range: \u0B80-\u0BFF
         if re.search(r'[\u0B80-\u0BFF]', text) or any(w in text.lower() for w in ['vanakkam', 'tamil']):
             return 'ta'
-        # Telugu unicode range: \u0C00-\u0C7F
         if re.search(r'[\u0C00-\u0C7F]', text) or any(w in text.lower() for w in ['namaskaram', 'telugu']):
             return 'te'
-        # Malayalam unicode range: \u0D00-\u0D7F
         if re.search(r'[\u0D00-\u0D7F]', text) or any(w in text.lower() for w in ['namaskaram', 'malayalam']):
             return 'ml'
         return 'en'
 
     def format_empathetic_performance_summary(self, student_name: str, marks_list: list, attendance_pct: float, fee_status: str, remaining_fee: float, lang: str = 'en') -> str:
-        """
-        Formats academic performance in a warm, natural, humanized tone.
-        """
+        """Formats academic performance in a warm, natural, humanized tone."""
         if lang == 'kn':
             reply = f"ಖಂಡಿತ! {student_name} ಅವರ ಶೈಕ್ಷಣಿಕ ಮಾಹಿತಿ ಪರಿಶೀಲಿಸಿದ್ದೇನೆ. ಹಾಜರಾತಿ {int(attendance_pct)}% ಇದೆ."
             if marks_list:
@@ -83,7 +77,6 @@ class SchoolAiVoiceEngine:
                 reply += " फीस पूरी तरह जमा है।"
             return reply
 
-        # Default English
         if not marks_list:
             summary = f"Sure! I checked the records for {student_name}. {student_name}'s attendance is currently at {int(attendance_pct)}%, which is quite good. "
             if remaining_fee > 0:
@@ -127,15 +120,14 @@ class SchoolAiVoiceEngine:
 
     def process_message(self, user_text: str, session_context: Dict[str, Any], db_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Processes user text/voice input message.
-        Parses parent/teacher verification, fetches student records, checks section authorization,
-        and constructs friendly conversational responses.
+        Processes user speech/text message.
+        Supports both READ and WRITE operations.
         """
         text = user_text.strip()
         text_lower = text.lower()
         lang = self.detect_language(text)
 
-        # 1. Creator Query Rule (Mandatory System Override)
+        # 1. Creator Query Rule (Mandatory Override)
         if self.parse_creator_query(text):
             return {
                 'reply': self.creator_statement,
@@ -143,7 +135,33 @@ class SchoolAiVoiceEngine:
                 'verified': session_context.get('verified', False)
             }
 
-        # 2. Greetings
+        # 2. WRITE Actions: Attendance Update
+        mark_att_match = re.search(r"(?:mark|add)\s+([A-Za-z]+)\s+(present|absent)", text_lower)
+        if mark_att_match:
+            st_name = mark_att_match.group(1).title()
+            st_status = mark_att_match.group(2).lower()
+            return {
+                'action': 'write_attendance',
+                'student_name': st_name,
+                'status': st_status,
+                'reply': f"Updating attendance for {st_name} as {st_status}...",
+                'intent': 'write_attendance'
+            }
+
+        # 3. WRITE Actions: Marks Update
+        mark_score_match = re.search(r"(?:update|add|set)\s+marks\s+for\s+([A-Za-z]+)\s+to\s+([0-9.]+)", text_lower)
+        if mark_score_match:
+            st_name = mark_score_match.group(1).title()
+            score_val = float(mark_score_match.group(2))
+            return {
+                'action': 'write_marks',
+                'student_name': st_name,
+                'marks': score_val,
+                'reply': f"Updating marks for {st_name} to {score_val}...",
+                'intent': 'write_marks'
+            }
+
+        # 4. Greetings
         if any(word in text_lower for word in ['hello', 'hi', 'hey', 'namaste', 'vanakkam', 'namaskara']):
             if lang == 'kn':
                 greeting = "ನಮಸ್ಕಾರ! ಕ್ಯಾಂಪಸ್-ಕನೆಕ್ಟ್ AI ಸಹಾಯಕ್‌ಗೆ ಸ್ವಾಗತ. ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
@@ -158,7 +176,7 @@ class SchoolAiVoiceEngine:
                 'verified': session_context.get('verified', False)
             }
 
-        # 3. If DB data for a student was fetched
+        # 5. READ Actions: DB data fetched
         if db_data and db_data.get('student_found'):
             student_name = db_data.get('student_name', 'the student')
             marks_list = db_data.get('marks_list', [])
@@ -182,9 +200,8 @@ class SchoolAiVoiceEngine:
                 'student_name': student_name
             }
 
-        # 4. Handle Parent Identity Verification Prompt
+        # 6. Parent Identity Verification Request
         if any(kw in text_lower for kw in ['perform', 'mark', 'score', 'attendance', 'fee', 'child', 'progress', 'report', 'absent', 'notebook', 'leaving', 'doing', 'result', 'status']):
-            # Extract student name
             name_match = re.search(r"(?:how is|about|check|details of|for|status of)\s+([A-Za-z]+)", text, re.IGNORECASE)
             student_name = name_match.group(1) if name_match else ""
 
@@ -199,7 +216,7 @@ class SchoolAiVoiceEngine:
                 }
 
         return {
-            'reply': "I am here to assist you! You can ask about student progress, attendance rates, fee details, homework verification, or teacher assignments.",
+            'reply': "I am here to assist you! You can ask about student progress, attendance rates, fee details, homework verification, or ask teachers to record marks/attendance.",
             'intent': 'general_help',
             'verified': session_context.get('verified', False)
         }

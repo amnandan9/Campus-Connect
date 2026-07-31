@@ -446,6 +446,48 @@ def schoolai_chat_api(request):
         from SchoolAiVoice.ai_engine import ai_engine
         result = ai_engine.process_message(user_message, session_ctx, db_data=db_data)
 
+        # Handle WRITE operations (attendance or marks updates via AI)
+        action = result.get('action')
+        if action in ['write_attendance', 'write_marks']:
+            if not (hasattr(request, 'user') and getattr(request.user, 'is_authenticated', False) and getattr(request.user, 'role', '') in ['teacher', 'super_admin']):
+                result['reply'] = "Permission Denied: Only authenticated teachers can record marks or attendance via AI."
+            else:
+                st_name = result.get('student_name', '')
+                profile = StudentProfile.objects.filter(
+                    Q(user__first_name__icontains=st_name) | Q(user__last_name__icontains=st_name) | Q(user__username__icontains=st_name)
+                ).first()
+
+                if not profile:
+                    result['reply'] = f"I couldn't find student '{st_name}' to record updates."
+                elif request.user.role == 'teacher' and profile.batch and profile.batch not in request.user.assigned_batches.all():
+                    sec_name = profile.batch.name if profile.batch else 'Unassigned'
+                    result['reply'] = f"Permission Denied: You can only record updates for your assigned Section ({sec_name})!"
+                else:
+                    if action == 'write_attendance':
+                        st_status = result.get('status', 'present')
+                        today = timezone.localdate()
+                        rec, created = AttendanceRecord.objects.get_or_create(student=profile, date=today, defaults={'status': st_status, 'marked_by': request.user})
+                        if not created:
+                            rec.status = st_status
+                            rec.marked_by = request.user
+                            rec.save()
+                        result['reply'] = f"Success! Attendance for {profile.user.get_full_name()} has been marked as {st_status.upper()}."
+
+                    elif action == 'write_marks':
+                        score_val = result.get('marks', 0)
+                        subj = request.user.teaching_subjects.first() if hasattr(request.user, 'teaching_subjects') else Subject.objects.first()
+                        AssignmentCorrection.objects.create(
+                            student=profile,
+                            subject=subj,
+                            teacher=request.user,
+                            work_type='test',
+                            title='AI Voice Test Score Entry',
+                            marks_obtained=score_val,
+                            max_marks=100,
+                            status='verified'
+                        )
+                        result['reply'] = f"Success! Recorded test score of {score_val}/100 for {profile.user.get_full_name()}."
+
         if result.get('student_name'):
             session_ctx['student_name'] = result.get('student_name')
 
@@ -455,6 +497,7 @@ def schoolai_chat_api(request):
             'intent': result.get('intent'),
             'session_context': session_ctx
         })
+
 
     except Exception as e:
         return JsonResponse({

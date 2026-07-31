@@ -71,36 +71,6 @@
         gap: 8px;
     }
 
-    .voice-control-bar {
-        background: rgba(30, 41, 59, 0.7);
-        padding: 8px 16px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        justify-content: space-between;
-    }
-    .btn-voice-toggle {
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.2s;
-    }
-    .btn-voice-start {
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: white;
-    }
-    .btn-voice-stop {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-    }
-
     .school-ai-body {
         flex: 1;
         padding: 16px;
@@ -155,22 +125,24 @@
         border: 1px solid rgba(139, 92, 246, 0.4);
         color: #c084fc;
         border-radius: 50%;
-        width: 38px;
-        height: 38px;
+        width: 42px;
+        height: 42px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background 0.2s;
+        transition: all 0.25s ease;
     }
     .school-ai-btn-mic.recording {
-        background: #ef4444;
-        color: #ffffff;
-        animation: blinkMic 1s infinite;
+        background: #ef4444 !important;
+        color: #ffffff !important;
+        border-color: #f87171 !important;
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+        animation: pulseMic 1.2s infinite;
     }
-    @keyframes blinkMic {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+    @keyframes pulseMic {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
     }
 </style>
 
@@ -183,36 +155,27 @@
     <div class="school-ai-header">
         <div class="school-ai-title">
             <svg width="20" height="20" fill="none" stroke="#c084fc" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-            Campus-Connect AI Assistant
+            Campus-Connect AI Voice
         </div>
-        <button onclick="toggleSchoolAiModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer;">&times;</button>
-    </div>
-
-    <div class="voice-control-bar">
-        <span style="font-size: 0.8rem; color: var(--text-secondary);" id="aiVoiceStatusLabel">Voice Status: Idle</span>
-        <div style="display: flex; gap: 6px;">
-            <button class="btn-voice-toggle btn-voice-start" id="startVoiceBtn" onclick="startAiVoiceListening()">
-                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Start AI Voice
-            </button>
-            <button class="btn-voice-toggle btn-voice-stop" id="stopVoiceBtn" onclick="stopAiVoiceListening()" style="display: none;">
-                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg> Stop AI Voice
-            </button>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="aiVoiceStatusLabel" style="font-size: 0.78rem; color: #94a3b8;">Idle</span>
+            <button onclick="toggleSchoolAiModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer;">&times;</button>
         </div>
     </div>
 
     <div class="school-ai-body" id="schoolAiBody">
         <div class="school-ai-msg bot">
-            Hello! I am your Campus-Connect AI Assistant. How can I help you today? You can ask about student attendance, marks, homework, fee status, or ask <b>"Who created you?"</b>.
+            Hello! I am your Campus-Connect AI Assistant. How can I help you today? Ask about attendance, marks, fees, or ask <b>"Who created you?"</b>.
         </div>
     </div>
 
     <div class="school-ai-footer">
-        <button class="school-ai-btn-mic" id="schoolAiMicBtn" onclick="toggleSchoolAiSpeech()" title="Speak Command">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+        <button class="school-ai-btn-mic" id="schoolAiMicBtn" onclick="toggleSchoolAiSpeech()" title="Toggle Single Mic Voice Input">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
         </button>
-        <input type="text" class="school-ai-input" id="schoolAiInput" placeholder="Type or speak a question..." onkeypress="if(event.key==='Enter') sendSchoolAiMsg()">
-        <button onclick="sendSchoolAiMsg()" style="background: #8b5cf6; border: none; color: white; border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+        <input type="text" class="school-ai-input" id="schoolAiInput" placeholder="Type or tap microphone..." onkeypress="if(event.key==='Enter') sendSchoolAiMsg()">
+        <button onclick="sendSchoolAiMsg()" style="background: #8b5cf6; border: none; color: white; border-radius: 50%; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
         </button>
     </div>
 </div>
@@ -221,6 +184,7 @@
     let schoolAiContext = {};
     let isRecording = false;
     let recognition = null;
+    let isBotSpeaking = false;
 
     function toggleSchoolAiModal() {
         const modal = document.getElementById('schoolAiModal');
@@ -231,6 +195,7 @@
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
         }
+        isBotSpeaking = false;
     }
 
     function appendSchoolAiMsg(sender, text) {
@@ -245,6 +210,23 @@
             stopAiSpeechSynthesis();
             const cleanText = text.replace(/<[^>]*>?/gm, '');
             const utter = new SpeechSynthesisUtterance(cleanText);
+            
+            // Pause recognition while speaking so AI does not listen to itself
+            if (recognition && isRecording) {
+                try { recognition.stop(); } catch(e) {}
+            }
+
+            isBotSpeaking = true;
+            utter.onend = function() {
+                isBotSpeaking = false;
+                if (isRecording && recognition) {
+                    try { recognition.start(); } catch(e) {}
+                }
+            };
+            utter.onerror = function() {
+                isBotSpeaking = false;
+            };
+
             window.speechSynthesis.speak(utter);
         }
     }
@@ -254,7 +236,7 @@
         const msg = input.value.trim();
         if (!msg) return;
 
-        // User interruption: Stop AI speech synthesis when user speaks / sends message
+        // User interruption: Cancel AI voice playback when user sends a new message
         stopAiSpeechSynthesis();
 
         appendSchoolAiMsg('user', msg);
@@ -287,10 +269,8 @@
 
         stopAiSpeechSynthesis();
 
-        const startBtn = document.getElementById('startVoiceBtn');
-        const stopBtn = document.getElementById('stopVoiceBtn');
-        const statusLbl = document.getElementById('aiVoiceStatusLabel');
         const micBtn = document.getElementById('schoolAiMicBtn');
+        const statusLbl = document.getElementById('aiVoiceStatusLabel');
 
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRec();
@@ -299,19 +279,18 @@
 
         recognition.onstart = function() {
             isRecording = true;
-            stopAiSpeechSynthesis(); // Interruption: Cancel AI speech when microphone turns on
-            startBtn.style.display = 'none';
-            stopBtn.style.display = 'inline-flex';
+            stopAiSpeechSynthesis();
             micBtn.classList.add('recording');
-            statusLbl.innerText = "Voice Status: Listening...";
+            statusLbl.innerText = "Listening...";
             statusLbl.style.color = "#34d399";
         };
 
         recognition.onspeechstart = function() {
-            stopAiSpeechSynthesis(); // Interruption: Instantly stop AI voice when user starts speaking
+            stopAiSpeechSynthesis(); // User interruption handling
         };
 
         recognition.onresult = function(event) {
+            if (isBotSpeaking) return; // Prevent AI self-interruption
             stopAiSpeechSynthesis();
             const lastResultIndex = event.results.length - 1;
             const transcript = event.results[lastResultIndex][0].transcript;
@@ -321,19 +300,17 @@
 
         recognition.onerror = function(err) {
             console.warn("Speech recognition error:", err);
-            statusLbl.innerText = "Voice Status: Idle";
-            statusLbl.style.color = "var(--text-secondary)";
+            statusLbl.innerText = "Idle";
+            statusLbl.style.color = "#94a3b8";
         };
 
         recognition.onend = function() {
-            if (isRecording) {
+            if (isRecording && !isBotSpeaking) {
                 try { recognition.start(); } catch(e) {}
-            } else {
-                startBtn.style.display = 'inline-flex';
-                stopBtn.style.display = 'none';
+            } else if (!isRecording) {
                 micBtn.classList.remove('recording');
-                statusLbl.innerText = "Voice Status: Idle";
-                statusLbl.style.color = "var(--text-secondary)";
+                statusLbl.innerText = "Idle";
+                statusLbl.style.color = "#94a3b8";
             }
         };
 
@@ -344,11 +321,9 @@
         isRecording = false;
         if (recognition) recognition.stop();
         stopAiSpeechSynthesis();
-        document.getElementById('startVoiceBtn').style.display = 'inline-flex';
-        document.getElementById('stopVoiceBtn').style.display = 'none';
         document.getElementById('schoolAiMicBtn').classList.remove('recording');
-        document.getElementById('aiVoiceStatusLabel').innerText = "Voice Status: Idle";
-        document.getElementById('aiVoiceStatusLabel').style.color = "var(--text-secondary)";
+        document.getElementById('aiVoiceStatusLabel').innerText = "Idle";
+        document.getElementById('aiVoiceStatusLabel').style.color = "#94a3b8";
     }
 
     function toggleSchoolAiSpeech() {

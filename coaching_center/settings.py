@@ -52,8 +52,11 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
 
-# Voice Agent Microservice Authentication Token
+# Voice Agent & Gemini API Key Settings (Loaded securely from Server Environment)
 VOICE_AGENT_API_KEY = os.environ.get('VOICE_AGENT_API_KEY', 'campus_connect_voice_secret_key_2026')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
+
 
 
 
