@@ -174,12 +174,19 @@ class AttendanceLogicTests(TestCase):
         """
         Verify teacher self attendance check-in and check-out logic.
         """
+        from coaching.models import TeacherAttendanceRecord
+        teacher = User.objects.create_user(username="teacher_self", role="teacher")
+        teacher.set_password("pass123")
+        teacher.save()
+        self.client.login(username="teacher_self", password="pass123")
+
         url = reverse('teacher_self_attendance_api')
         res = self.client.post(url)
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertTrue(data['success'])
         self.assertEqual(TeacherAttendanceRecord.objects.filter(teacher=teacher).count(), 1)
+
 
     def test_scanner_views(self):
         """
