@@ -22,3 +22,8 @@ urlpatterns = [
     path('', include('coaching.urls')),
 ]
 
+handler403 = 'coaching.views.custom_403'
+handler404 = 'coaching.views.custom_404'
+handler500 = 'coaching.views.custom_500'
+
+

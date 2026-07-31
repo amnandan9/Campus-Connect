@@ -34,18 +34,24 @@ ALLOWED_HOSTS = [h.strip() for h in _raw_hosts.split(',') if h.strip()] or [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
+    'https://amkeerthana.pythonanywhere.com',
+    'http://amkeerthana.pythonanywhere.com',
     'https://anthonycoaching.pythonanywhere.com',
-    'https://*.pythonanywhere.com',
     'http://anthonycoaching.pythonanywhere.com',
+    'https://*.pythonanywhere.com',
     'http://*.pythonanywhere.com',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]
 
+# Custom CSRF Failure View
+CSRF_FAILURE_VIEW = 'coaching.views.csrf_failure'
+
 # Mobile CSRF & Session Cookie Compatibility Settings
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
+
 
 
 # ---------------------------------------------------------------------------

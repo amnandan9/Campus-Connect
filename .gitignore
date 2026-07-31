@@ -1,7 +1,7 @@
 *.pyc
 __pycache__/
 media/
-
+*.sqlite3
 *.log
 .gemini/
 .agents/
