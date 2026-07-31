@@ -1,5 +1,5 @@
 from django.urls import path
-from coaching import views
+from coaching import views, api_views
 
 urlpatterns = [
     # Authentication URLs
@@ -52,6 +52,16 @@ urlpatterns = [
     path('api/verify-correction/', views.verify_correction_api, name='verify_correction_api'),
     path('api/record-movement/', views.record_movement_api, name='record_movement_api'),
     path('api/teacher-self-attendance/', views.teacher_self_attendance_api, name='teacher_self_attendance_api'),
+
+    # Voice Agent Microservice REST API Endpoints
+    path('api/v1/voice/student/', api_views.voice_get_student, name='voice_get_student'),
+    path('api/v1/voice/marks/', api_views.voice_update_marks, name='voice_update_marks'),
+    path('api/v1/voice/attendance/', api_views.voice_update_attendance, name='voice_update_attendance'),
+    path('api/v1/voice/parent/', api_views.voice_get_parent_contact, name='voice_get_parent_contact'),
+    path('api/v1/voice/notification/', api_views.voice_create_notification, name='voice_create_notification'),
+    path('api/v1/voice/teacher/', api_views.voice_get_teacher, name='voice_get_teacher'),
+    path('api/v1/voice/academic-summary/', api_views.voice_academic_summary, name='voice_academic_summary'),
 ]
+
 
 

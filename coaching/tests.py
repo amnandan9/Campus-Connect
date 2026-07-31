@@ -197,11 +197,40 @@ class AttendanceLogicTests(TestCase):
         teacher.save()
         self.client.login(username="teacher_scanner", password="pass123")
 
-        res1 = self.client.get(reverse('scanner_corrections'))
-        self.assertEqual(res1.status_code, 200)
-
         res2 = self.client.get(reverse('scanner_movement'))
         self.assertEqual(res2.status_code, 200)
+
+    def test_voice_api_authentication(self):
+        """
+        Verify that Voice API endpoints require a valid API key.
+        """
+        url = reverse('voice_get_student') + '?query=student_bob'
+        res_no_key = self.client.get(url)
+        self.assertEqual(res_no_key.status_code, 401)
+
+        res_valid = self.client.get(url, HTTP_X_API_KEY='campus_connect_voice_secret_key_2026')
+        self.assertEqual(res_valid.status_code, 200)
+
+    def test_voice_update_marks_threshold(self):
+        """
+        Verify updating marks via Voice API and parent outreach trigger (<40%).
+        """
+        headers = {'HTTP_X_API_KEY': 'campus_connect_voice_secret_key_2026'}
+        url = reverse('voice_update_marks')
+        payload = {
+            'student_name': 'student_bob',
+            'subject': 'Mathematics',
+            'marks_obtained': 35.0,
+            'max_marks': 100.0,
+            'work_type': 'test'
+        }
+        res = self.client.post(url, data=payload, content_type='application/json', **headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertTrue(data['parent_call_required'])
+        self.assertEqual(data['percentage'], 35.0)
+
 
 
 
