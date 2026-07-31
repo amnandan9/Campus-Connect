@@ -1095,7 +1095,7 @@ def save_student_note_api(request):
 def scanner_corrections(request):
     """View for subject teachers to scan student QR codes for notebook corrections, marks, and project verifications."""
     if request.user.role == 'teacher':
-        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periodschedule__teacher=request.user)).distinct()
+        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periods__teacher=request.user)).distinct()
         if not subjects.exists():
             subjects = Subject.objects.all()
         assigned_batch_ids = list(request.user.assigned_batches.values_list('id', flat=True))
@@ -1123,11 +1123,12 @@ def scanner_corrections(request):
 def scanner_movement(request):
     """View for tracking classroom IN/OUT exits and entries via student QR scans."""
     if request.user.role == 'teacher':
-        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periodschedule__teacher=request.user)).distinct()
+        subjects = Subject.objects.filter(Q(teacher=request.user) | Q(periods__teacher=request.user)).distinct()
         if not subjects.exists():
             subjects = Subject.objects.all()
         recent_logs = ClassroomMovementLog.objects.filter(teacher=request.user).select_related('student__user', 'subject', 'teacher')[:20]
     else:
+
         subjects = Subject.objects.all()
         recent_logs = ClassroomMovementLog.objects.select_related('student__user', 'subject', 'teacher')[:20]
 
