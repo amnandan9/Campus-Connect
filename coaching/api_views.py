@@ -82,8 +82,22 @@ def voice_update_marks(request):
             Q(user__username__icontains=student_query)
         ).select_related('user', 'batch').first()
 
-        if not profile:
-            return JsonResponse({'success': False, 'error': f"Student '{student_query}' not found"}, status=404)
+        teacher_username = data.get('teacher_username', '').strip()
+        if request.user.is_authenticated and request.user.role == 'teacher':
+            teacher_user = request.user
+        elif teacher_username:
+            teacher_user = User.objects.filter(username=teacher_username, role='teacher').first()
+        else:
+            teacher_user = None
+
+        if teacher_user and teacher_user.role == 'teacher':
+            assigned_batches = list(teacher_user.assigned_batches.values_list('id', flat=True))
+            if profile.batch and profile.batch.id not in assigned_batches:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Permission Denied',
+                    'message': f"Teacher {teacher_user.get_full_name()} is only authorized to manage students in assigned Section ({', '.join(teacher_user.assigned_batches.values_list('name', flat=True))})."
+                }, status=403)
 
         subject = None
         if subject_query:
@@ -104,6 +118,7 @@ def voice_update_marks(request):
             teacher_remarks=remarks,
             verified_at=timezone.now()
         )
+
 
         pct = (marks_obtained / max_marks * 100.0) if max_marks > 0 else 0.0
         parent_call_required = (pct < 40.0)
@@ -159,6 +174,24 @@ def voice_update_attendance(request):
 
         if not profile:
             return JsonResponse({'success': False, 'error': f"Student '{student_query}' not found"}, status=404)
+
+        teacher_username = data.get('teacher_username', '').strip()
+        if request.user.is_authenticated and request.user.role == 'teacher':
+            teacher_user = request.user
+        elif teacher_username:
+            teacher_user = User.objects.filter(username=teacher_username, role='teacher').first()
+        else:
+            teacher_user = None
+
+        if teacher_user and teacher_user.role == 'teacher':
+            assigned_batches = list(teacher_user.assigned_batches.values_list('id', flat=True))
+            if profile.batch and profile.batch.id not in assigned_batches:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Permission Denied',
+                    'message': f"Teacher {teacher_user.get_full_name()} is only authorized to mark attendance for students in assigned Section."
+                }, status=403)
+
 
         if status_val == 'absent':
             AttendanceRecord.objects.filter(student=profile, date=target_date).delete()
