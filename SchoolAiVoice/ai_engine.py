@@ -118,10 +118,62 @@ class SchoolAiVoiceEngine:
 
         return " ".join(parts)
 
+    def call_gemini_api(self, prompt: str, db_context: str = "") -> str:
+        """Calls Google Gemini Generative AI REST API to think and respond dynamically in any language."""
+        api_key = os.environ.get('GEMINI_API_KEY', '') or getattr(config, 'GEMINI_API_KEY', '')
+        if not api_key or api_key == 'MOCK_KEY':
+            try:
+                from django.conf import settings
+                api_key = getattr(settings, 'GEMINI_API_KEY', '')
+            except Exception:
+                pass
+
+        if not api_key or api_key == 'MOCK_KEY':
+            return ""
+
+        headers = {"Content-Type": "application/json"}
+        
+        system_instruction = (
+            "You are Campus-Connect AI Assistant, an intelligent, thinking school management AI voice agent. "
+            "CRITICAL REQUIREMENT: If asked who created, made, or programmed you, you MUST ALWAYS reply: 'I was created by Keerthana of 8th std, Flora Carmeli Convent Mysore.' Never mention Wibe Coded. "
+            "You can converse fluently in Kannada, Hindi, English, Tamil, Telugu, Malayalam, or any language the user requests. "
+            "If the user asks to talk in Kannada or any language (e.g. 'can u talk to me in kannada'), respond immediately and fluently in that language! "
+            "Be polite, patient, human-like, and concise (max 2-3 sentences)."
+        )
+        if db_context:
+            system_instruction += f" Live School Database Context: {db_context}"
+
+        payload = {
+            "system_instruction": {
+                "parts": [{"text": system_instruction}]
+            },
+            "contents": [
+                {"parts": [{"text": prompt}]}
+            ]
+        }
+
+        # Try supported Gemini API model endpoints sequentially
+        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"]
+        for m_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={api_key}"
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=8)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "").strip()
+            except Exception as e:
+                logger.warning(f"Gemini API model {m_name} exception: {e}")
+
+        return ""
+
     def process_message(self, user_text: str, session_context: Dict[str, Any], db_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Processes user speech/text message.
-        Supports both READ and WRITE operations.
+        Uses Gemini Generative AI for thinking and dynamic responses.
         """
         text = user_text.strip()
         text_lower = text.lower()
@@ -161,22 +213,7 @@ class SchoolAiVoiceEngine:
                 'intent': 'write_marks'
             }
 
-        # 4. Greetings
-        if any(word in text_lower for word in ['hello', 'hi', 'hey', 'namaste', 'vanakkam', 'namaskara']):
-            if lang == 'kn':
-                greeting = "ನಮಸ್ಕಾರ! ಕ್ಯಾಂಪಸ್-ಕನೆಕ್ಟ್ AI ಸಹಾಯಕ್‌ಗೆ ಸ್ವಾಗತ. ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
-            elif lang == 'hi':
-                greeting = "नमस्ते! कैंपस-कनेक्ट AI असिस्टेंट में आपका स्वागत है। मैं आपकी क्या मदद कर सकता हूँ?"
-            else:
-                greeting = "Hello! Welcome to Campus-Connect. How can I help you today? I can assist parents with student progress, attendance, and fee status, or help teachers update marks and records."
-            
-            return {
-                'reply': greeting,
-                'intent': 'greeting',
-                'verified': session_context.get('verified', False)
-            }
-
-        # 5. READ Actions: DB data fetched
+        # 4. READ Actions: DB data fetched
         if db_data and db_data.get('student_found'):
             student_name = db_data.get('student_name', 'the student')
             marks_list = db_data.get('marks_list', [])
@@ -200,29 +237,7 @@ class SchoolAiVoiceEngine:
                 'student_name': student_name
             }
 
-        # 6. Gemini Generative AI Call for General Q&A (if key configured)
-        api_key = os.environ.get('GEMINI_API_KEY', '') or getattr(config, 'GEMINI_API_KEY', '')
-        if api_key and api_key != 'MOCK_KEY':
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=api_key)
-                system_prompt = (
-                    "You are Campus-Connect AI Assistant, a friendly and intelligent school management AI. "
-                    "You were created by Keerthana of 8th std, Flora Carmeli Convent Mysore. "
-                    "Provide clear, concise, helpful, and polite answers (max 2-3 sentences)."
-                )
-                model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_prompt)
-                resp = model.generate_content(text)
-                if resp and resp.text:
-                    return {
-                        'reply': resp.text.strip(),
-                        'intent': 'gemini_generative_qa',
-                        'verified': session_context.get('verified', False)
-                    }
-            except Exception as ge:
-                logger.warning(f"Gemini API call exception: {ge}")
-
-        # 7. Parent Identity Verification Request / Default Response
+        # 5. Parent Identity Verification Check
         if any(kw in text_lower for kw in ['perform', 'mark', 'score', 'attendance', 'fee', 'child', 'progress', 'report', 'absent', 'notebook', 'leaving', 'doing', 'result', 'status']):
             name_match = re.search(r"(?:how is|about|check|details of|for|status of)\s+([A-Za-z]+)", text, re.IGNORECASE)
             student_name = name_match.group(1) if name_match else ""
@@ -237,12 +252,32 @@ class SchoolAiVoiceEngine:
                     'student_name': student_name
                 }
 
+        # 6. Try Gemini AI Thinking Engine for all general Q&A / multilingual prompts
+        db_context_str = json.dumps(db_data) if db_data and db_data.get('student_found') else ""
+        gemini_reply = self.call_gemini_api(text, db_context=db_context_str)
+        if gemini_reply:
+            return {
+                'reply': gemini_reply,
+                'intent': 'gemini_thinking_ai',
+                'verified': session_context.get('verified', False)
+            }
+
+        # 7. Default Multilingual Intelligent Fallback
+        if lang == 'kn':
+            default_reply = f"ಖಂಡಿತ, ನಾನು ನಿಮ್ಮೊಂದಿಗೆ ಮಾತನಾಡಬಲ್ಲೆ! ನಾನು ಕ್ಯಾಂಪಸ್-ಕನೆಕ್ಟ್ AI ಸಹಾಯಕ್. ವಿದ್ಯಾರ್ಥಿಗಳ ಹಾಜರಾತಿ, ಅಂಕಗಳು, ಅಥವಾ ಶುಲ್ಕದ ಕುರಿತು ಯಾವುದೇ ಪ್ರಶ್ನೆ ಕೇಳಬಹುದು."
+        elif lang == 'hi':
+            default_reply = f"मैं आपकी मदद के लिए यहाँ हूँ! आप छात्रों की उपस्थिति, अंक या फीस से जुड़ा कोई भी सवाल पूछ सकते हैं।"
+        else:
+            default_reply = f"I am Campus-Connect AI Assistant! I am here to assist you with student attendance, marks, fee records, or any question about our campus portal."
+
         return {
-            'reply': f"I am Campus-Connect AI Assistant! I heard you say: '{user_text}'. I can help you with student attendance, marks, fees, campus schedules, or answer any question about our school portal.",
+            'reply': default_reply,
             'intent': 'general_help',
             'verified': session_context.get('verified', False)
         }
 
 
 ai_engine = SchoolAiVoiceEngine()
+
+
 

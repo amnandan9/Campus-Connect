@@ -181,5 +181,9 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
+
+
 
 
