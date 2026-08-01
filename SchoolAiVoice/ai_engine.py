@@ -200,7 +200,29 @@ class SchoolAiVoiceEngine:
                 'student_name': student_name
             }
 
-        # 6. Parent Identity Verification Request
+        # 6. Gemini Generative AI Call for General Q&A (if key configured)
+        api_key = os.environ.get('GEMINI_API_KEY', '') or getattr(config, 'GEMINI_API_KEY', '')
+        if api_key and api_key != 'MOCK_KEY':
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                system_prompt = (
+                    "You are Campus-Connect AI Assistant, a friendly and intelligent school management AI. "
+                    "You were created by Keerthana of 8th std, Flora Carmeli Convent Mysore. "
+                    "Provide clear, concise, helpful, and polite answers (max 2-3 sentences)."
+                )
+                model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_prompt)
+                resp = model.generate_content(text)
+                if resp and resp.text:
+                    return {
+                        'reply': resp.text.strip(),
+                        'intent': 'gemini_generative_qa',
+                        'verified': session_context.get('verified', False)
+                    }
+            except Exception as ge:
+                logger.warning(f"Gemini API call exception: {ge}")
+
+        # 7. Parent Identity Verification Request / Default Response
         if any(kw in text_lower for kw in ['perform', 'mark', 'score', 'attendance', 'fee', 'child', 'progress', 'report', 'absent', 'notebook', 'leaving', 'doing', 'result', 'status']):
             name_match = re.search(r"(?:how is|about|check|details of|for|status of)\s+([A-Za-z]+)", text, re.IGNORECASE)
             student_name = name_match.group(1) if name_match else ""
@@ -216,10 +238,11 @@ class SchoolAiVoiceEngine:
                 }
 
         return {
-            'reply': "I am here to assist you! You can ask about student progress, attendance rates, fee details, homework verification, or ask teachers to record marks/attendance.",
+            'reply': f"I am Campus-Connect AI Assistant! I heard you say: '{user_text}'. I can help you with student attendance, marks, fees, campus schedules, or answer any question about our school portal.",
             'intent': 'general_help',
             'verified': session_context.get('verified', False)
         }
 
 
 ai_engine = SchoolAiVoiceEngine()
+

@@ -65,16 +65,28 @@
 
     function initScanner() {
         html5QrCode = new Html5Qrcode("qrReader");
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        const config = { fps: 15, qrbox: { width: 250, height: 250 } };
         
-        html5QrCode.start(
-            { facingMode: currentFacingMode },
-            config,
-            onScanSuccess
-        ).catch(err => {
-            console.error("Camera error:", err);
+        Html5Qrcode.getCameras().then(devices => {
+            let targetConfig = { facingMode: currentFacingMode };
+            if (devices && devices.length > 0) {
+                const backCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear') || d.label.toLowerCase().includes('environment'));
+                if (backCamera && currentFacingMode === "environment") {
+                    targetConfig = backCamera.id;
+                }
+            }
+            html5QrCode.start(
+                targetConfig,
+                config,
+                onScanSuccess
+            ).catch(err => {
+                console.error("Camera error:", err);
+            });
+        }).catch(err => {
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess).catch(e => console.error(e));
         });
     }
+
 
     function toggleCameraFacing() {
         if (html5QrCode) {

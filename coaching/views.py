@@ -609,6 +609,17 @@ def mark_attendance_api(request):
             
             today = timezone.localdate()
             
+            # Enforce Section Scoping for Teachers
+            if request.user.role == 'teacher':
+                assigned_batches = request.user.assigned_batches.all()
+                if assigned_batches.exists() and profile.batch not in assigned_batches:
+                    sec_name = profile.batch.name if profile.batch else 'Unassigned'
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'Permission Denied: You are only authorized to mark attendance for your assigned Section ({sec_name})!'
+                    }, status=403)
+
+            
             # Check Daily Attendance Submission Lock
             if profile.batch:
                 lock = DailyBatchAttendanceLock.objects.filter(batch=profile.batch, date=today).first()
