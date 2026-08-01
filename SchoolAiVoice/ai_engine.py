@@ -152,8 +152,8 @@ class SchoolAiVoiceEngine:
             ]
         }
 
-        # Try supported Gemini API model endpoints sequentially
-        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"]
+        # Try supported Gemini API model endpoints sequentially (preferring active flash models)
+        models_to_try = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.6-flash", "gemini-2.0-flash"]
         for m_name in models_to_try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={api_key}"
             try:
@@ -169,6 +169,7 @@ class SchoolAiVoiceEngine:
                 logger.warning(f"Gemini API model {m_name} exception: {e}")
 
         return ""
+
 
     def process_message(self, user_text: str, session_context: Dict[str, Any], db_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
