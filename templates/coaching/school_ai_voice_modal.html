@@ -1,4 +1,4 @@
-<!-- SchoolAiVoice Single-Button Voice Agent Widget -->
+<!-- SchoolAiVoice Single-Button Voice Agent Widget with Role Identification -->
 <style>
     .school-ai-floating-btn {
         position: fixed;
@@ -35,9 +35,9 @@
         position: fixed;
         bottom: 90px;
         right: 24px;
-        width: 380px;
+        width: 390px;
         max-width: calc(100vw - 32px);
-        height: 480px;
+        height: 520px;
         max-height: calc(100vh - 120px);
         background: rgba(15, 23, 42, 0.96);
         backdrop-filter: blur(16px);
@@ -74,13 +74,39 @@
         gap: 8px;
     }
 
-    /* Single Central Voice Orb */
+    /* Role Quick Selector Pills */
+    .role-selector-bar {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 10px;
+    }
+    .role-pill-btn {
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        color: #cbd5e1;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.25s ease;
+    }
+    .role-pill-btn.active, .role-pill-btn:hover {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #ffffff;
+        border-color: transparent;
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    /* Central Voice Orb */
     .voice-orb-container {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 18px;
+        gap: 16px;
         margin: auto 0;
     }
     .voice-orb-btn {
@@ -97,7 +123,6 @@
         justify-content: center;
         box-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
         transition: all 0.3s ease;
-        position: relative;
     }
     .voice-orb-btn.listening {
         background: linear-gradient(135deg, #ef4444, #dc2626) !important;
@@ -132,8 +157,8 @@
         font-size: 0.88rem;
         line-height: 1.4;
         text-align: center;
-        min-height: 70px;
-        max-height: 100px;
+        min-height: 75px;
+        max-height: 110px;
         overflow-y: auto;
     }
 </style>
@@ -147,9 +172,16 @@
     <div class="school-ai-header">
         <div class="school-ai-title">
             <svg width="20" height="20" fill="none" stroke="#c084fc" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-            Campus-Connect Voice Agent
+            Campus-Connect AI Voice
         </div>
         <button onclick="toggleSchoolAiModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <!-- Role Selection Bar -->
+    <div class="role-selector-bar">
+        <button class="role-pill-btn" id="roleBtnParent" onclick="setAiRole('parent')">👨‍👩‍👧 Parent</button>
+        <button class="role-pill-btn" id="roleBtnTeacher" onclick="setAiRole('teacher')">👨‍🏫 Teacher/Staff</button>
+        <button class="role-pill-btn" id="roleBtnPublic" onclick="setAiRole('public')">🌐 Visitor (Public)</button>
     </div>
 
     <!-- Single Central Voice Microphone -->
@@ -160,23 +192,48 @@
         <div class="voice-status-text" id="voiceAgentStatus">Tap to Start Listening</div>
     </div>
 
-    <!-- Live Subtitle Box -->
+    <!-- Live Subtitle Display -->
     <div class="voice-subtitle-box" id="voiceSubtitleBox">
-        Hello! I am your AI Voice Agent. Tap the microphone button once to speak with me.
+        Hello! Welcome to Campus-Connect AI Voice. Who am I talking to today? Tap a role or tap the mic to speak.
     </div>
 </div>
 
 <script>
-    let schoolAiContext = {};
+    let schoolAiContext = { user_role: 'public' };
     let isListening = false;
     let isSpeaking = false;
     let recognition = null;
+    let currentSpeechText = '';
 
     function toggleSchoolAiModal() {
         const modal = document.getElementById('schoolAiModal');
         modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
         if (modal.style.display === 'none') {
             stopVoiceAgent();
+        }
+    }
+
+    function setAiRole(role) {
+        schoolAiContext.user_role = role;
+        document.querySelectorAll('.role-pill-btn').forEach(btn => btn.classList.remove('active'));
+
+        const subtitle = document.getElementById('voiceSubtitleBox');
+
+        if (role === 'parent') {
+            document.getElementById('roleBtnParent').classList.add('active');
+            const msg = "Role: Parent. Please tell me your student's full name and registered phone number to verify.";
+            subtitle.innerText = msg;
+            speakAiResponse(msg);
+        } else if (role === 'teacher') {
+            document.getElementById('roleBtnTeacher').classList.add('active');
+            const msg = "Role: Teacher/Staff. Please ensure you are logged in to access and update your assigned class records.";
+            subtitle.innerText = msg;
+            speakAiResponse(msg);
+        } else {
+            document.getElementById('roleBtnPublic').classList.add('active');
+            const msg = "Role: Visitor. How can I help you with school admissions or campus information today?";
+            subtitle.innerText = msg;
+            speakAiResponse(msg);
         }
     }
 
@@ -198,7 +255,7 @@
         if (state === 'listening') {
             btn.classList.add('listening');
             icon.className = "fa-solid fa-square";
-            status.innerText = "Listening... Tap to Stop";
+            status.innerText = "Listening... Tap to Stop & Submit";
             status.style.color = "#f87171";
             if (text) subtitle.innerText = text;
         } else if (state === 'speaking') {
@@ -222,32 +279,30 @@
         }
 
         stopSpeechSynthesis();
+        currentSpeechText = '';
 
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRec();
-        recognition.continuous = false;
+        recognition.continuous = true;
         recognition.interimResults = true;
 
         recognition.onstart = function() {
             isListening = true;
-            updateVoiceState('listening', "Listening to your voice...");
+            updateVoiceState('listening', "Listening to your voice... Tap button when finished.");
         };
 
         recognition.onresult = function(event) {
             let interim = '';
-            let final = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    final += event.results[i][0].transcript;
+                    currentSpeechText += event.results[i][0].transcript + ' ';
                 } else {
                     interim += event.results[i][0].transcript;
                 }
             }
-            if (final) {
-                document.getElementById('voiceSubtitleBox').innerText = "You: " + final;
-                submitVoiceTranscript(final);
-            } else if (interim) {
-                document.getElementById('voiceSubtitleBox').innerText = "You: " + interim;
+            const displayText = (currentSpeechText + interim).trim();
+            if (displayText) {
+                document.getElementById('voiceSubtitleBox').innerText = "You: " + displayText;
             }
         };
 
@@ -259,7 +314,9 @@
 
         recognition.onend = function() {
             isListening = false;
-            if (!isSpeaking) {
+            if (!isSpeaking && currentSpeechText.trim()) {
+                submitVoiceTranscript(currentSpeechText.trim());
+            } else if (!isSpeaking) {
                 updateVoiceState('idle');
             }
         };
@@ -268,12 +325,13 @@
     }
 
     function stopVoiceAgent() {
-        isListening = false;
-        if (recognition) {
+        if (isListening && recognition) {
             try { recognition.stop(); } catch(e) {}
+            isListening = false;
+        } else {
+            stopSpeechSynthesis();
+            updateVoiceState('idle');
         }
-        stopSpeechSynthesis();
-        updateVoiceState('idle');
     }
 
     function toggleVoiceAgent() {
@@ -288,12 +346,7 @@
     }
 
     async function submitVoiceTranscript(transcript) {
-        if (recognition) {
-            try { recognition.stop(); } catch(e) {}
-        }
-        isListening = false;
-
-        updateVoiceState('speaking', "AI is processing your query...");
+        updateVoiceState('speaking', "AI is processing your request...");
 
         try {
             const res = await fetch('/api/v1/schoolai/chat/', {
