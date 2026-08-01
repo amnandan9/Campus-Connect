@@ -195,12 +195,16 @@
     }
 
     function sendVerification(token) {
-        const subjectId = document.getElementById("subjectSelect").value;
+        const batchEl = document.getElementById("batchSelect");
+        const batchId = batchEl ? batchEl.value : "";
+        const subjectEl = document.getElementById("subjectSelect");
+        const subjectId = subjectEl ? subjectEl.value : "";
         const workType = document.getElementById("workTypeSelect").value;
         const title = document.getElementById("titleInput").value || "Routine Check";
         const marks = document.getElementById("marksInput").value;
         const maxMarks = document.getElementById("maxMarksInput").value || 100;
-        const status = document.getElementById("statusSelect").value;
+        const statusSelect = document.getElementById("statusSelect");
+        const status = statusSelect ? statusSelect.value : "verified";
 
         const resDiv = document.getElementById("scanResult");
         resDiv.style.display = "block";
@@ -216,6 +220,7 @@
             },
             body: JSON.stringify({
                 qr_token: token,
+                batch_id: batchId,
                 subject_id: subjectId,
                 work_type: workType,
                 title: title,
@@ -224,6 +229,7 @@
                 status: status
             })
         })
+
         .then(res => res.json())
         .then(data => {
             if (data.success) {

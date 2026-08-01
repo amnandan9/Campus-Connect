@@ -799,6 +799,7 @@ def toggle_attendance_lock_api(request):
 def toggle_student_attendance_api(request):
     """
     API endpoint for Teachers and Admins to toggle attendance status ('present' or 'absent') for an individual student.
+    Enforces assigned section scoping for teachers.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid HTTP Method.'}, status=405)
@@ -811,6 +812,16 @@ def toggle_student_attendance_api(request):
 
         student = get_object_or_404(StudentProfile, id=student_id)
 
+        # Enforce Section Scoping for Teachers
+        if request.user.role == 'teacher':
+            assigned_batches = request.user.assigned_batches.all()
+            if assigned_batches.exists() and student.batch not in assigned_batches:
+                sec_name = student.batch.name if student.batch else 'Unassigned'
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Permission Denied: You are only authorized to mark attendance for your assigned Section ({sec_name})!'
+                }, status=403)
+
         # Check Daily Batch Lock
         if student.batch:
             lock = DailyBatchAttendanceLock.objects.filter(batch=student.batch, date=today).first()
@@ -820,6 +831,7 @@ def toggle_student_attendance_api(request):
                     'is_locked': True,
                     'message': f'Attendance for batch "{student.batch.name}" is submitted and locked for today. Unlock the batch to modify.'
                 })
+
 
         record = AttendanceRecord.objects.filter(student=student, date=today).first()
 
@@ -1061,6 +1073,11 @@ def save_batch_note_api(request):
             daily_note = data.get('daily_note', '')
             
             batch = get_object_or_404(Batch, id=batch_id)
+
+            if request.user.role == 'teacher' and request.user.assigned_batches.exists():
+                if batch not in request.user.assigned_batches.all():
+                    return JsonResponse({'success': False, 'message': f'Permission Denied: You can only save notes for your assigned Section ({batch.name})!'}, status=403)
+
             batch.daily_note = daily_note
             batch.save()
             
@@ -1083,6 +1100,12 @@ def save_student_note_api(request):
             individual_note = data.get('individual_note', '')
             
             profile = get_object_or_404(StudentProfile, id=student_id)
+
+            if request.user.role == 'teacher' and request.user.assigned_batches.exists():
+                if profile.batch and profile.batch not in request.user.assigned_batches.all():
+                    sec_name = profile.batch.name if profile.batch else 'Unassigned'
+                    return JsonResponse({'success': False, 'message': f'Permission Denied: You can only save notes for students in your assigned Section ({sec_name})!'}, status=403)
+
             profile.individual_note = individual_note
             profile.save()
             
@@ -1090,6 +1113,7 @@ def save_student_note_api(request):
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=400)
     return JsonResponse({'success': False, 'message': 'Invalid HTTP Method.'}, status=405)
+
 
 
 @login_required

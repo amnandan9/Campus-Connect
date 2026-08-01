@@ -1,0 +1,135 @@
+<!-- Campus-Connect PWA Mobile App Download Prompt -->
+<style>
+    .pwa-install-banner {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10000;
+        width: 90%;
+        max-width: 440px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        border-radius: 20px;
+        padding: 16px 20px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+        display: none;
+        align-items: center;
+        gap: 14px;
+        animation: pwaSlideUp 0.4s ease-out;
+    }
+    @keyframes pwaSlideUp {
+        from { opacity: 0; transform: translate(-50%, 30px); }
+        to { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .pwa-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        object-fit: cover;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+    .pwa-info {
+        flex: 1;
+    }
+    .pwa-title {
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.95rem;
+        margin-bottom: 2px;
+    }
+    .pwa-desc {
+        color: #94a3b8;
+        font-size: 0.78rem;
+    }
+    .pwa-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .pwa-btn-install {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #ffffff;
+        border: none;
+        border-radius: 25px;
+        padding: 8px 16px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        transition: transform 0.2s;
+    }
+    .pwa-btn-install:hover {
+        transform: scale(1.04);
+    }
+    .pwa-btn-close {
+        background: none;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 4px;
+    }
+</style>
+
+<div id="pwaInstallBanner" class="pwa-install-banner">
+    <img src="{% static 'coaching/logo.png' %}" alt="CampusConnect App" class="pwa-icon">
+    <div class="pwa-info">
+        <div class="pwa-title">Install Campus-Connect App</div>
+        <div class="pwa-desc">Add to Home Screen for fast mobile access & instant QR scanning.</div>
+    </div>
+    <div class="pwa-actions">
+        <button id="pwaInstallBtn" class="pwa-btn-install" onclick="installPWA()">Install</button>
+        <button class="pwa-btn-close" onclick="dismissPWABanner()">&times;</button>
+    </div>
+</div>
+
+<script>
+    let deferredPrompt = null;
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(reg => console.log('PWA ServiceWorker registered:', reg.scope))
+                .catch(err => console.warn('ServiceWorker registration failed:', err));
+        });
+    }
+
+    // Capture PWA Install Prompt Event
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        
+        if (!localStorage.getItem('pwa_banner_dismissed')) {
+            setTimeout(() => {
+                const banner = document.getElementById('pwaInstallBanner');
+                if (banner) banner.style.display = 'flex';
+            }, 2000);
+        }
+    });
+
+    function installPWA() {
+        const banner = document.getElementById('pwaInstallBanner');
+        if (banner) banner.style.display = 'none';
+
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    console.log('User accepted the PWA install prompt');
+                }
+                deferredPrompt = null;
+            });
+        } else {
+            alert("To install Campus-Connect: Tap your browser menu (⋮ or Share) and select 'Add to Home Screen'.");
+        }
+    }
+
+    function dismissPWABanner() {
+        const banner = document.getElementById('pwaInstallBanner');
+        if (banner) banner.style.display = 'none';
+        localStorage.setItem('pwa_banner_dismissed', 'true');
+    }
+</script>
