@@ -1118,7 +1118,18 @@ def save_student_note_api(request):
 
 @login_required
 @role_required('teacher', 'super_admin')
+def scanner_fees(request):
+    """View for scanning student QR codes to inspect fee status and dues."""
+    if request.user.role == 'teacher' and request.user.assigned_batches.exists():
+        students = StudentProfile.objects.filter(batch__in=request.user.assigned_batches.all(), user__is_active=True).select_related('user', 'batch')
+    else:
+        students = StudentProfile.objects.filter(user__is_active=True).select_related('user', 'batch')
+    return render(request, 'coaching/scanner_fee.html', {'students': students})
+
+@login_required
+@role_required('teacher', 'super_admin')
 def scanner_corrections(request):
+
     """View for subject teachers to scan student QR codes for notebook corrections, marks, and project verifications."""
     if request.user.role == 'teacher':
         batches = request.user.assigned_batches.all()
@@ -1195,24 +1206,21 @@ def verify_correction_api(request):
                 subject = request.user.teaching_subjects.first() or Subject.objects.first()
 
             if request.user.role == 'teacher':
-                has_access = False
-                if batch_id and int(batch_id) in request.user.assigned_batches.values_list('id', flat=True):
-                    has_access = True
-                elif student.batch and student.batch in request.user.assigned_batches.all():
-                    has_access = True
-                elif student.batch and student.batch.teacher == request.user:
-                    has_access = True
-                elif subject and subject.teacher == request.user:
-                    has_access = True
-                elif not request.user.assigned_batches.exists():
-                    has_access = True
-
-                if not has_access:
+                assigned_batches = request.user.assigned_batches.all()
+                if assigned_batches.exists():
+                    if not student.batch or student.batch not in assigned_batches:
+                        sec_name = student.batch.name if student.batch else 'Unassigned'
+                        return JsonResponse({
+                            'success': False,
+                            'message': f"Permission Denied: You are only authorized to verify corrections for your assigned Section ({sec_name})!"
+                        }, status=403)
+                elif student.batch and student.batch.teacher != request.user and not request.user.teaching_subjects.filter(id=subject.id if subject else 0).exists():
                     sec_name = student.batch.name if student.batch else 'Unassigned'
                     return JsonResponse({
                         'success': False,
-                        'message': f"Permission Denied: You are only authorized to record corrections for your assigned Section ({sec_name})!"
+                        'message': f"Permission Denied: You are only authorized to verify corrections for your assigned Section ({sec_name})!"
                     }, status=403)
+
 
 
 

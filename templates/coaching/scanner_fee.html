@@ -1,0 +1,151 @@
+{% extends 'coaching/base.html' %}
+
+{% block title %}Fee Status QR Scanner | Campus-Connect{% endblock %}
+{% block active_fee_scan %}active{% endblock %}
+{% block active_fee_scan_admin %}active{% endblock %}
+{% block page_title %}Fee Status QR Scanner{% endblock %}
+
+{% block extra_head %}
+<style>
+    #qrReader {
+        border: none !important;
+        border-radius: 20px;
+        overflow: hidden;
+        width: 100% !important;
+        max-width: 440px;
+        aspect-ratio: 4/3;
+        margin: 0 auto;
+        background-color: #000;
+        box-shadow: var(--shadow-premium);
+    }
+    #qrReader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card-premium" style="max-width: 750px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="margin-bottom: 8px;"><i class="fa-solid fa-receipt" style="color: var(--accent-emerald);"></i> Fee Status QR Scanner</h2>
+        <p style="color: var(--text-secondary);">Scan student QR code card to inspect fee status, remaining dues, and payment history.</p>
+    </div>
+
+    <!-- Scanner Viewport -->
+    <div style="text-align: center; margin-bottom: 24px;">
+        <button onclick="toggleCameraFacing()" class="btn-premium btn-secondary" style="padding: 8px 16px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;">
+            <i class="fa-solid fa-camera-rotate"></i> Flip Camera
+        </button>
+        <div id="qrReader"></div>
+    </div>
+
+    <!-- Manual QR Token Input -->
+    <div style="display: flex; gap: 10px; max-width: 440px; margin: 0 auto 24px;">
+        <select id="manualStudentSelect" class="form-control" style="flex: 1;">
+            <option value="">-- Or Select Student manually --</option>
+            {% for s in students %}
+                <option value="{{ s.qr_code_token }}">{{ s.user.get_full_name }} ({{ s.batch.name|default:"No Section" }})</option>
+            {% endfor %}
+        </select>
+        <button onclick="checkManualFee()" class="btn-premium" style="padding: 8px 16px; font-size: 0.85rem;">Inspect Fee</button>
+    </div>
+
+    <!-- Result Banner -->
+    <div id="scanResult" style="display: none; padding: 20px; border-radius: 16px; margin-bottom: 24px; text-align: left;"></div>
+</div>
+
+<!-- html5-qrcode script -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+    let html5QrCode = null;
+    let currentFacingMode = "environment";
+    let isProcessing = false;
+
+    function initScanner() {
+        html5QrCode = new Html5Qrcode("qrReader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        
+        html5QrCode.start(
+            { facingMode: currentFacingMode },
+            config,
+            onScanSuccess
+        ).catch(err => {
+            console.error("Camera error:", err);
+        });
+    }
+
+    function toggleCameraFacing() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+                initScanner();
+            });
+        }
+    }
+
+    function onScanSuccess(decodedText) {
+        if (isProcessing) return;
+        isProcessing = true;
+        inspectFeeStatus(decodedText);
+    }
+
+    function checkManualFee() {
+        const token = document.getElementById("manualStudentSelect").value;
+        if (!token) {
+            alert("Please select a student first!");
+            return;
+        }
+        inspectFeeStatus(token);
+    }
+
+    function inspectFeeStatus(token) {
+        const resDiv = document.getElementById("scanResult");
+        resDiv.style.display = "block";
+        resDiv.style.backgroundColor = "rgba(99, 102, 241, 0.2)";
+        resDiv.style.color = "#818cf8";
+        resDiv.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking fee records...`;
+
+        fetch("{% url 'public_student_info' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({ qr_token: token })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const isCleared = data.fee_status === 'Cleared' || data.remaining_fee <= 0;
+                resDiv.style.backgroundColor = isCleared ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)";
+                resDiv.style.border = isCleared ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(239, 68, 68, 0.4)";
+                resDiv.style.color = "#ffffff";
+                
+                let html = `<div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; color: ${isCleared ? '#34d399' : '#f87171'};">
+                    <i class="fa-solid ${isCleared ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i> ${data.student_name} (${data.section})
+                </div>`;
+                html += `<div style="font-size: 0.95rem; margin-bottom: 4px;">Status: <strong>${data.fee_status}</strong></div>`;
+                html += `<div style="font-size: 0.95rem;">Remaining Balance: <strong>₹${data.remaining_fee.toLocaleString()}</strong></div>`;
+                resDiv.innerHTML = html;
+
+                setTimeout(() => { isProcessing = false; }, 3500);
+            } else {
+                resDiv.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+                resDiv.style.color = "#f87171";
+                resDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${data.message || 'Student not found.'}`;
+                setTimeout(() => { isProcessing = false; }, 3000);
+            }
+        })
+        .catch(err => {
+            resDiv.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+            resDiv.style.color = "#f87171";
+            resDiv.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Network error fetching fee status.`;
+            setTimeout(() => { isProcessing = false; }, 3000);
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", initScanner);
+</script>
+{% endblock %}
