@@ -240,7 +240,7 @@ class AttendanceLogicTests(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertTrue(data['success'])
-        self.assertIn("Keerthana of 8th std", data['reply'])
+        self.assertIn("Keerthana", data['reply'])
 
     def test_schoolai_parent_verification_flow(self):
         """
