@@ -174,7 +174,7 @@ class SchoolAiVoiceEngine:
         user_role = session_context.get('user_role', 'public')
 
         # 2. Parent Verification Check
-        if user_role == 'parent' and not session_context.get('verified'):
+        if not session_context.get('verified') and (user_role == 'parent' or any(kw in text_lower for kw in ['perform', 'mark', 'score', 'attendance', 'fee', 'child', 'progress', 'report', 'absent', 'notebook', 'leaving', 'doing', 'result', 'status'])):
             # Extract phone number and student name if provided in prompt
             phone_match = re.search(r'(\d{10})', text)
             name_match = re.search(r"(?:student|child|for|name|is)\s+([A-Za-z]+)", text_lower)
@@ -204,6 +204,7 @@ class SchoolAiVoiceEngine:
                     'verified': False,
                     'session_context': session_context
                 }
+
 
         # 3. Teacher Authentication / Scoping Check
         if user_role == 'teacher':
