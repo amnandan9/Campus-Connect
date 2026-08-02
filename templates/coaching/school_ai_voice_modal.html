@@ -378,6 +378,20 @@
 
         const cleanText = text.replace(/<[^>]*>?/gm, '');
         const utter = new SpeechSynthesisUtterance(cleanText);
+        utter.rate = 0.95;
+        utter.pitch = 1.05;
+
+        // Select highest quality natural voice from browser
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+            let selectedVoice = voices.find(v => (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Zira") || v.name.includes("Samantha") || v.name.includes("Jenny")) && (v.lang.startsWith("en") || v.lang.startsWith("kn") || v.lang.startsWith("hi")));
+            if (!selectedVoice) {
+                selectedVoice = voices.find(v => v.lang.startsWith("en") || v.lang.startsWith("kn") || v.lang.startsWith("hi")) || voices[0];
+            }
+            if (selectedVoice) {
+                utter.voice = selectedVoice;
+            }
+        }
 
         isSpeaking = true;
         updateVoiceState('speaking', "AI: " + cleanText);
@@ -394,3 +408,4 @@
         window.speechSynthesis.speak(utter);
     }
 </script>
+
