@@ -362,11 +362,34 @@
                 schoolAiContext = data.session_context;
             }
 
-            speakAiResponse(replyText);
+            if (data.audio_url) {
+                playAoedeAudio(data.audio_url, replyText);
+            } else {
+                speakAiResponse(replyText);
+            }
         } catch (e) {
             updateVoiceState('idle', "Connection error. Please tap mic to try again.");
         }
     }
+
+    function playAoedeAudio(audioSrc, cleanText) {
+        stopSpeechSynthesis();
+        isSpeaking = true;
+        updateVoiceState('speaking', "AI (Aoede): " + cleanText);
+
+        const audio = new Audio(audioSrc);
+        audio.onended = function() {
+            isSpeaking = false;
+            updateVoiceState('idle', "AI: " + cleanText);
+        };
+        audio.onerror = function() {
+            speakAiResponse(cleanText);
+        };
+        audio.play().catch(e => {
+            speakAiResponse(cleanText);
+        });
+    }
+
 
     function speakAiResponse(text) {
         if (!('speechSynthesis' in window)) {
